@@ -3,3 +3,7 @@ graalvm-ce-java17-22.3.1
 
 # Dist artifacts
 target
+
+# IDE and linters
+.clj-kondo/
+.lsp/
