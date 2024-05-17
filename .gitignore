@@ -7,3 +7,4 @@ target
 # IDE and linters
 .clj-kondo/
 .lsp/
+.nrepl-port
