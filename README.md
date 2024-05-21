@@ -23,14 +23,7 @@ The idea is to work out the "wraper" interface into a usable and productive work
 
 ### Usage
 
-To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app:
-- builds structure around the responsibilities described above that match the org's current workflows
-- 
-
-This is analogous to 
-
-- **Free chat** (default) - Start with normal chat, but from here you can transition to an existing structured mode by making your intention clear. 
-You can also think of a structured mode as interacting with an AI under an additional, specific configuration (with specific prompt templates and tools use access).
+To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. Unlike interacting with the LLM in the default interface, this is basically interaction with additional configuration, involving specific prompt templates and tools use access.
 
 #### Structured modes
 
