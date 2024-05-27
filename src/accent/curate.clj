@@ -1,6 +1,6 @@
 (ns accent.curate
   (:gen-class)
-  (:require [accent.core :refer [pat user ui]]
+  (:require [accent.core :refer [u]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.data.csv :as csv]))
@@ -46,7 +46,7 @@
 (defn get-entity
   [id]
   (let [url (str "https://rep-prod.prod.sagebase.org/repo/v1/entity" id)]
-    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " @pat)}})))
+    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}})))
 
 
 (defn get-scope-ids
@@ -57,7 +57,7 @@
 
 (defn list-children [id]
   (->(client/post "https://repo-prod.prod.sagebase.org/repo/v1/entity/children"
-                  {:headers {:Content-type "application/json" :Authorization (str "Bearer " @pat)}
+                  {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}
                    :body (json/encode
                           {:parentId id
                            :nextPageToken nil
@@ -72,7 +72,7 @@
 
 (defn get-filehandle [id]
   (let [url (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/filehandles")]
-    (-> (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " @pat)}})
+    (-> (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}})
         (:body)
         (json/parse-string true)
         (get-in [:list 0 :id]))))
@@ -94,7 +94,7 @@
   [syn-id]
   (let [handle-id (get-filehandle syn-id)
         url (str "https://repo-prod.prod.sagebase.org/file/v1/file/" handle-id)]
-    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " @pat)}
+    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}
                      :query-params {"redirect" "true" "fileAssociateType" "FileEntity" "fileAssociateId" syn-id}})))
 
 
@@ -132,7 +132,7 @@
 (defn has-AR?
   [id]
   (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/accessRequirement")
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer" @pat)}})
+                 {:headers {:Content-type "application/json" :Authorization (str "Bearer" (@u :sat))}})
      (:body)
      (json/parse-string true)
      (:totalNumberOfResults)))
@@ -149,7 +149,7 @@
 (defn get-meta
   [id]
   (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/annotations2")
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " @pat)}})
+                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}})
      (:body)
      (json/parse-string true)))
 
@@ -184,12 +184,11 @@
                     (= "title" k) "TBD"
                     (= "description" k) "TBD"
                     (= "accessType" k) (label-access scope)
-                    (= "creator" k) (str (@user :firstName) (@user :lastName))
+                    (= "creator" k) (str (get-in @u [:profile :firstName]) (get-in @u [:profile :lastName]))
                     (= "contributor" k) (get-contributor)
                     :else (fill-val k ref)
                     )])
              props)))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
