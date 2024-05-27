@@ -7,15 +7,20 @@
             [clojure.java.io :as io]
             [clojure.string :as s]))
 
-(def pat (atom (System/getenv "SYNAPSE_AUTH_TOKEN")))
-(def api-key (atom (System/getenv "OPENAI_API_KEY")))
-(def model (atom "gpt-3.5-turbo")) ;; currently not offered as a configurable option yet
-(def user (atom {}))
-(def dcc (atom {}))
-(def ui (atom :default)) ;; the default interace is basic console input, planned => gum TUI + web
+
+(defonce u ;; user config
+  (atom
+   {:sat (System/getenv "SYNAPSE_AUTH_TOKEN")
+    :oak (System/getenv "OPENAI_API_KEY")
+    :dcc nil
+    :profile nil
+    :model "gpt-3.5-turbo"
+    :ui :default}))
+
 
 (defonce messages (atom [{:role    "system"
                           :content "You are a helpful assistant"}]))
+
 
 (def tools [
             {:type "function"
@@ -50,11 +55,12 @@
                           :content prompt})
     (client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
-                            "Authorization" (str "Bearer " @api-key)}
+                            "Authorization" (str "Bearer " (@u :oak))}
                   :body    (json/generate-string
-                              {:model   @model
+                              {:model   (@u :model)
                                :messages @messages
                                :tools tools})}))
+
 
 (defn response [resp]
   (let [resp    (json/parse-string (:body resp) true)
@@ -64,28 +70,30 @@
     content))
 
 
-(defn get-user
-  "Get user info from Synapse"
-  [pat]
+(defn get-user-profile
+  "Get user profile from Synapse using Synapse auth token"
+  [sat]
   (->(client/get "https://repo-prod.prod.sagebase.org/repo/v1/userProfile"
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " pat)}})
+                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " sat)}})
      (:body)
      (json/parse-string true)))
 
-(defn valid-user-data?
-  "TODO: More rigorous checks of returned server data."
-  [user-data]
+
+(defn valid-user-profile?
+  "TODO: Real rigorous checks of the user pofile."
+  [profile]
   true)
 
+
 (defn set-user!
-  [pat]
+  [sat]
   (try
-    (let [user-data (get-user pat)]
+    (let [profile (get-user-profile (@u sat))]
       ;; validate against expected user profile data
-      (if (valid-user-data? user-data)
+      (if (valid-user-profile? profile)
         (do
-          (reset! user user-data)
-          (reset! pat (user-data :synapse_auth_token))
+          ;; (swap! u assoc :profile profile)
+          ;; (swap! u assoc :sat token)
           true)
         (do
           (println "Login failed: Invalid user data.")
@@ -94,62 +102,75 @@
       (println "Login failed:" (.getMessage e))
       nil)))
 
+
 (defn set-api-key!
-  "TODO: Check whether valid by making a call to OpenAI server,
-  similar to current check with Synapse set-user!"
-  [k]
+  "Use for switching between OpenAI API keys, as there can be org/personal/project-specific keys.
+  TODO: Check whether valid by making a call to OpenAI service."
+  [oak]
   (do
-    (reset! api-key k)
+    (swap! u assoc :oak oak)
     true))
 
-(defn token-input
+
+(defn token-input-def
+  [placeholder]
+  (let [console (System/console)
+        token (.readPassword console placeholder nil)]
+    token))
+
+
+(defn token-input-tui
   [placeholder]
   (s/trim (:result (b/gum :input :password true :placeholder placeholder))))
 
-(defn prompt-for-pat
-  "Prompt for Synapse personal access token."
+
+(defn prompt-for-sat
+  "Prompt for Synapse authentication token."
   []
-  (loop [attempts 0]
-    (if (< attempts 2)
-      (do
-        (let [pat (token-input "Synapse PAT")]
-          (if (set-user! pat)
-            (println "Hi")
-            (recur (inc attempts)))
-          (recur (inc attempts))))
-      (println "Maximum attempts reached. Exiting."))))
+  (let [sat (token-input-def "Synapse auth token: ")]
+    (if (set-user! sat)
+      (println "Hi" (get-in @u [:profile :firstName])))))
+
 
 (defn prompt-for-api-key
   []
-  (let [api-key (token-input "OpenAI API key")]
+  (let [api-key (token-input-def "OpenAI API key: ")]
     (if (set-api-key! api-key)
       true
       (println "No OpenAI API key. Exiting."))))
 
+
 (defn check-syn-creds []
-  (when-not @pat
+  (when-not (@u :sat)
      (println "Synapse credentials not detected. Please login.")
-     (prompt-for-pat)))
+     (prompt-for-sat)))
+
 
 (defn check-openai-creds
   "TODO: Handle if user has no credits left."
   []
-  (when-not @api-key
+  (when-not (@u :oak)
     (println "OpenAI API key not detected. Please provide.")
     (prompt-for-api-key)
     ))
 
-(defn delegate []
-  )
+
+(defn delegate
+  []
+  "TODO")
+
 
 (defn working-chat
-  [] true)
+  []
+  "TODO")
+
 
 (defn save-chat
   [filename]
   (let [json-str (json/generate-string @messages)]
     (with-open [wr (io/writer filename)]
       (.write wr json-str))))
+
 
 (defn -main []
   (do
