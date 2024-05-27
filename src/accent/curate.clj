@@ -167,13 +167,24 @@
 
 
 (defn get-contributor
-  "Eventually this may handle two approaches to identify contributors.
-   For NF, use everyone named as dataLead on the project;
-   though unfortunately this might not reusable by other DCCs
-   that don't have the same exact concept/annotation of dataLead.
-   Contributors can be all the users who uploaded or modified the files."
-  [project]
-  (get-in project [:dataLead :value]))
+  "The most parsimonious approach (with fewest assumptions) for designating contributors
+  is to use all unique people who uploaded files part of the dataset.
+  However, DCCs may want to derive contributors each in their own special and potentially non-portable way
+  (see get-contributor-nf).
+  Ultimately, this shouldn't be expected to be initialized with perfect values and
+  should be pointed out as one of the more high-priority items for human review."
+  [scope]
+  )
+
+
+(defn get-contributor-nf
+  "NF's alternative approach for assigning contributors: use everyone named as dataLead on the project.
+  This could be an incorrect assumption when different individuals were responsible for different
+  datasets in a project (e.g. one obtained the sequencing data while another obtained the imaging data),
+  and if this is an important distinction the individuals involved (or not) might not much appreciate this method."
+  [scope]
+  ["TODO"])
+
 
 (defn source-values
   "Set values mostly using manifest summary, though selected props have special methods."
@@ -185,7 +196,7 @@
                     (= "description" k) "TBD"
                     (= "accessType" k) (label-access scope)
                     (= "creator" k) (str (get-in @u [:profile :firstName]) (get-in @u [:profile :lastName]))
-                    (= "contributor" k) (get-contributor)
+                    (= "contributor" k) (get-contributor scope)
                     :else (fill-val k ref)
                     )])
              props)))
@@ -203,9 +214,9 @@
     ))
 
 
-(defn confirm-submit-meta-gui
-  []
-  (b/gum :confirm ["Submit this metadata?"] :as :bool))
+;;(defn confirm-submit-meta-tui
+;;  []
+;;  (b/gum :confirm ["Submit this metadata?"] :as :bool))
 
 
 (defn confirm-submit-meta

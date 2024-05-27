@@ -1,7 +1,7 @@
 (ns accent.core 
   (:gen-class)
   (:require [babashka.http-client :as client]
-            [bblgum.core :as b]
+            ;;[bblgum.core :as b]
             [cheshire.core :as json]  
             [clojure.data.csv :as csv]  
             [clojure.java.io :as io]
@@ -119,9 +119,9 @@
     token))
 
 
-(defn token-input-tui
-  [placeholder]
-  (s/trim (:result (b/gum :input :password true :placeholder placeholder))))
+;;(defn token-input-tui
+;;  [placeholder]
+;;  (s/trim (:result (b/gum :input :password true :placeholder placeholder))))
 
 
 (defn prompt-for-sat
