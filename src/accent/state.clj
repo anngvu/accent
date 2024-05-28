@@ -3,7 +3,8 @@
   (:require [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [database.upstream :refer [get-dcc-configs]]))
 
 
 (defonce u ;; user config
@@ -101,7 +102,21 @@
     (prompt-for-api-key)))
 
 
+(defn prompt-for-dcc
+  []
+  (println "Please wait while the app attempts to refresh configs...")
+  (let [configs (get-dcc-configs)
+        options (map :name configs)]
+    (println "Please choose a DCC:" (apply str options))))
+
+
+(defn set-dcc-configs
+  []
+ )
+
+
 (defn setup
   []
   (check-syn-creds)
-  (check-openai-creds))
+  (check-openai-creds)
+  (prompt-for-dcc))
