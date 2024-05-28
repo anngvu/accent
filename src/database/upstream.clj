@@ -32,7 +32,7 @@
   (read-json "configs.json"))
 
 
-(defn get-configs
+(defn get-dcc-configs
   "Get configs from the config store, fallback to local configs.json if fail"
   []
   (try
@@ -42,5 +42,5 @@
       (read-local-configs))))
 
 
-;(def dcc-configs (get-from-config-store))
+;(def dcc-configs (get-dcc-configs))
 ;(def all (get-model-graphs dca-cfgs))
