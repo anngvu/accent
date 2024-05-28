@@ -1,6 +1,6 @@
 (ns accent.curate
   (:gen-class)
-  (:require [accent.core :refer [u]]
+  (:require [accent.state :refer [u]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.data.csv :as csv]))
@@ -79,7 +79,7 @@
 
 
 (defn validate-scope
-  "Persist at getting a valid scope, where 'valid' depends on the context.
+  "Check whether valid scope, where 'valid' depends on the context.
    In general a scope means a container such as a project, folder, or view,
    but in something like a dataset curation workflow, only a folder is accepted."
   [id type]
@@ -208,21 +208,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defn confirm-submit-meta-def
-  []
-  (println "Submit this metadata? (Y/n)")
+(defn coerce-to-boolean [input]
+  (let [true-variants #{"Y" "y" "yes" "Yes" "YES"}]
+    (contains? true-variants input)))
+
+
+(defn confirm-prompt
+  [placeholder]
+  (println placeholder)
   (let [response (read-line)]
-    ))
+    (coerce-to-boolean response)))
 
 
-;;(defn confirm-submit-meta-tui
-;;  []
-;;  (b/gum :confirm ["Submit this metadata?"] :as :bool))
+;;(defn confirm-prompt-tui
+;;  [placeholder]
+;;  (b/gum :confirm [placeholder] :as :bool))
 
 
 (defn confirm-submit-meta
-  "Get confirmation via the configured UI"
-  [])
+  "Get confirmation via some UI"
+  []
+  (confirm-prompt "Submit this metadata? (Y/n)"))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;

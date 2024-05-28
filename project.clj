@@ -11,7 +11,7 @@
                  ]
   :jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
-  :main ^:skip-aot accent.core
+  :main ^:skip-aot accent.chat
   :target-path "target/%s"
   :native-image {:name ""}
   :profiles {:uberjar {:aot :all}})
