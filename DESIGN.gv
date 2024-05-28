@@ -1,0 +1,44 @@
+digraph G {
+ 
+  rankdir=BT;
+  
+  
+  subgraph cluster_curation {
+    
+   
+    curate_dataset[label="accent.curate"];
+    
+  }
+  
+  config[label="accent.config"]
+  
+  
+  subgraph cluster_dm_rag {
+      
+    db[label="accent.dmbase.dlvn"];
+    rag[label="accent.dmbase.rag"];
+    rag_core[label="accent.dmbase.core"];
+    rag_core -> db
+    rag_core -> rag
+      
+  }
+  
+  subgraph cluster_viz {
+    vegalite[label="accent.viz.vegalite"]
+    
+  }
+  
+  subgraph cluster_ui {
+    web[label="accent.ui.web"]
+  }
+  
+  vegalite -> web
+  curate_dataset -> config
+  core -> config
+  core[label="accent.core"]
+  core -> curate_dataset
+  core -> rag_core
+  core -> vegalite
+
+
+}
