@@ -1,6 +1,7 @@
-(ns database.core
+(ns database.dlvn
   (:gen-class)
-  (:require [clojure.java.io :as io]
+  (:require [database.upstream :refer :all]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [cheshire.core :as json]
             [datalevin.core :as d]))
@@ -67,20 +68,26 @@
   :db/doc         "Enums or valid values included in the range of the entity"}
  ])
 
-(def dlvn-schema (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) schematic-entity-schema)))
+
+(def dlvn-schema
+  (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) schematic-entity-schema)))
+
 
 (def schema-reference
   "More entities may be added"
   schematic-entity-schema)
+
 
 (defn key-fn [k]
   (->(str/replace k "@" "")
      (str/replace ":" "/")
      (keyword)))
 
+
 (defn get-schematic-jsonld [path]
   (let [model (json/parse-stream (io/reader path) key-fn)]
     model))
+
 
 (defn rm-default
   "Remove empty arrays and schema/isPartOf"
@@ -89,7 +96,9 @@
       (remove #(and (vector? (second %)) (empty? (second %))))
       (into {})))
 
+
 (defn as-bool [s] (boolean (str/replace s "sms:" "")))
+
 
 (defn good-graph
   "Prep the JSON-LD graph for loading"
@@ -98,6 +107,7 @@
       (map #(assoc % :dcc dcc))
       (map #(update % :sms/required as-bool))
       (map rm-default)))
+
 
 (def query-required
  '[:find ?e ?displayName
@@ -110,33 +120,13 @@
 ;; Then add fun to transform graph data to install attribute preds
 
 
-(defn read-json
-  "TODO: Additional validation spec for json being read"
-  [path & [keyfn]]
-  (try
-    (json/parse-stream (io/reader path) (or keyfn true))
-    (catch com.fasterxml.jackson.core.JsonParseException e (println "Error: Invalid JSON data"))
-    (catch Exception e
-      (str "Error: " (.getMessage e)))
-    (finally nil)))
-
-
-(defn get-model-refs
-  "Get model refs from the prod DCA config"
-  []
-  (let [repo-raw "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
-        tenants (str repo-raw "tenants.json")]
-    (some->>(read-json tenants)
-            (:tenants)
-            (mapv (fn [m] {:name (:name m)
-                           :config (read-json (str repo-raw (:config_location m)))})))))
-
 (defn transform-dca-config [config]
   {:dcc (get-in config [:config :dcc :name])
    :data_model_url (get-in config [:config :dcc :data_model_url])})
 
-(defn import-models
-  "Pipeline to import models, models unable to be retrieved are nil and removed"
+
+(defn get-model-graphs
+  "Get model graphs, ones unable to be retrieved are nil and removed"
   [configs]
   (->>(map transform-dca-config configs)
       (map #(assoc % :data_model (read-json (% :data_model_url) key-fn)))
@@ -144,13 +134,13 @@
       (map #(assoc % :graph (good-graph (% :data_model) (:dcc %))))
       (mapv #(% :graph))))
 
+
 (defn load-models [conn gs]
   (doseq [g gs]
     (d/transact! conn g)))
+
 
 (defn run-query [conn q]
   (d/q q (d/db conn)))
 
 ;(def conn (d/get-conn "/tmp/datalevin/mydb" dlvn-schema))
-;(def dca-cfgs (get-model-refs))
-;(def all (import-models dca-cfgs))
