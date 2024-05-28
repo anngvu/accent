@@ -1,6 +1,9 @@
 # Build tools
 graalvm-ce-java17-22.3.1
 
+# Logs
+reports
+
 # Dist artifacts
 target
 

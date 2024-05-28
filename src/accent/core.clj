@@ -1,31 +1,38 @@
 (ns accent.core 
   (:gen-class)
   (:require [babashka.http-client :as client]
+            ;;[bblgum.core :as b]
             [cheshire.core :as json]  
             [clojure.data.csv :as csv]  
             [clojure.java.io :as io]
             [clojure.string :as s]))
 
-(def api-key (System/getenv "OPENAI_API_KEY"))
-(def synapse-auth-token (System/getenv "SYNAPSE_AUTH_TOKEN"))
-(def entity-endpoint "https://repo-prod.prod.sagebase.org/repo/v1/entity/")
-(def entity-children-endpoint "https://repo-prod.prod.sagebase.org/repo/v1/entity/children")
 
-(def model (atom "gpt-3.5-turbo"))
-(def user (atom {}))
-(def project (atom {}))
+(defonce u ;; user config
+  (atom
+   {:sat (System/getenv "SYNAPSE_AUTH_TOKEN")
+    :oak (System/getenv "OPENAI_API_KEY")
+    :dcc nil
+    :profile nil
+    :model "gpt-3.5-turbo"
+    :ui :default}))
+
+
+(defonce messages (atom [{:role    "system"
+                          :content "You are a helpful assistant"}]))
 
 
 (def tools [
             {:type "function"
              :function
              {:name "curate_dataset"
-              :description "Use this to help user curate a datase given the dataset id and, optionally, an id for the related manifest"
+              :description "Use this to help user curate a dataset given the dataset id and, optionally, an id for the related manifest"
               :parameters
               {:type "object"
                :properties {
-                 :dataset_id {:type "string" :description "The dataset id, something like 'syn12345678'"}
-                 :manifest_id {:type "string" :description "The manifest id, something like 'syn12345678'. In many cases, the manifest can be automatically discovered, but when a manifest is outside of the expected location, it should be explicitly provided."}
+                 :dataset_id {:type "string" :description "The dataset id, something like 'syn12345678'"} 
+                              :manifest_id {:type "string" 
+                                            :description "The manifest id, something like 'syn12345678'. In most cases, the manifest can be automatically discovered, but when a manifest is not in the expected location the id should be provided."}
                }}
               :required ["dataset_id"] }}
              {:name "ask_database"
@@ -42,20 +49,18 @@
                :required "query"}}
             ])
 
-(defonce messages (atom [{:role    "system"
-                          :content "You are a helpful assistant"}]))
-
 
 (defn request [prompt]
     (swap! messages conj {:role    "user"
                           :content prompt})
     (client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
-                            "Authorization" (str "Bearer " api-key)}
+                            "Authorization" (str "Bearer " (@u :oak))}
                   :body    (json/generate-string
-                              {:model   @model
+                              {:model   (@u :model)
                                :messages @messages
                                :tools tools})}))
+
 
 (defn response [resp]
   (let [resp    (json/parse-string (:body resp) true)
@@ -64,167 +69,100 @@
                                       :content content})]
     content))
 
-(defn get-scope-ids [id] 
-  (let [url (str entity-endpoint id)] 
-    (->> (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " synapse-auth-token)}})
-         (:scopeIds))))
 
-(defn list-children [id]
-  (->(client/post entity-children-endpoint
-                  {:headers {:Content-type "application/json" :Authorization (str "Bearer " synapse-auth-token)}
-                   :body (json/encode 
-                          {:parentId id
-                           :nextPageToken nil
-                           :includeTypes ["file"]
-                           :sortBy "NAME"
-                           :includeTotalChildCount true
-                           :includeSumFileSizes true})})
-     (:body)
-     (json/parse-string true)
-     (:page)))
-
-(defn manifest-match? [entity] (re-find (re-matcher #"synapse_storage_manifest" (entity :name))))
-
-(defn find-manifest [files] (first (filter manifest-match? files)))
-
-(defn get-filehandle [id]
-  (let [url (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/filehandles")]
-    (-> (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " synapse-auth-token)}})
-        (:body)
-        (json/parse-string true)
-        (get-in [:list 0 :id]))))
-
-(defn get-data-url 
-  [syn-id] 
-  (let [handle-id (get-filehandle syn-id) 
-        url (str "https://repo-prod.prod.sagebase.org/file/v1/file/" handle-id)]
-    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " synapse-auth-token)} 
-                     :query-params {"redirect" "true" "fileAssociateType" "FileEntity" "fileAssociateId" syn-id}})))
-
-(defn get-manifest [folder]
-  (let [response (list-children folder)
-        manifest (find-manifest response)]
-    (if manifest (get-data-url (manifest :id)) "Manifest not automatically found")))
-
-(defn is-numeric [s]
-  (try
-    (Double/parseDouble s)
-    true
-    (catch Exception _ false)))
-
-(defn summarize-column [column-data]
-  (if (every? is-numeric column-data)
-    (let [nums (map #(Double/parseDouble %) column-data)]
-      {:type "numeric" :min (apply min nums) :max (apply max nums)})
-    {:type "ordinal" :unique-values (distinct column-data)}))
-
-(defn summarize-manifest [response]
-  (let [manifest (:body response)
-        parsed (csv/read-csv manifest)
-        headers (first parsed)
-        columns (apply map vector (rest parsed))]
-    (zipmap headers (map summarize-column columns))))
-
-(defn get-files [id] (list-children id))
-
-(defn get-model
-  [url]
-  (->(client/get url)
-     (:body)
-    (json/parse-string false)))
-
-
-(defn get-benefactor [id]
-  (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/benefactor"))
-     (:body)
-     (json/parse-string true)
-     (:id)
-     ))
-
-(defn get-acl [id]
-  (let [id (get-benefactor id)]
-    (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/acl"))
-       (:body)
-       (json/parse-string true))))
-
-(defn public-download?
-  "Note: No Open Access for Synapse data, i.e. anonymous download, except with special governance,
-  so checking for PUBLIC download is default."
-  [acl]
-  (some (fn [entry]
-        (and (= 273948 (:principalId entry))
-             (some #(= "DOWNLOAD" %) (:accessType entry))))
-        (:resourceAccess acl)))
-
-(defn has-AR?
-  [id]
-  (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/accessRequirement")
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer" synapse-auth-token)}})
-     (:body)
-     (json/parse-string true)
-     (:totalNumberOfResults)))
-
-(defn label-access [id]
-  (cond
-    (has-AR? id) "CONTROLLED ACCESS"
-    (public-download? (get-acl id)) "PUBLIC ACCESS"
-    :else "PRIVATE ACCESS"))
-
-(defn fill-val
-  "Look up val for k in summary ref"
-  [k ref]
-  (if-let [val (get-in ref [k :unique-values])]
-    val
-    "TBD"))
-
-(defn get-user
-  "Get user for the current curation session"
-  []
+(defn get-user-profile
+  "Get user profile from Synapse using Synapse auth token"
+  [sat]
   (->(client/get "https://repo-prod.prod.sagebase.org/repo/v1/userProfile"
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " synapse-auth-token)}})
+                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " sat)}})
      (:body)
      (json/parse-string true)))
 
-(defn set-user
-  "Set user or prompt for valid token"
-  [userdata]
-  (reset! user userdata))
+
+(defn valid-user-profile?
+  "TODO: Real rigorous checks of the user pofile."
+  [profile]
+  true)
 
 
-(defn get-meta
-  [id]
-  (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/annotations2")
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " synapse-auth-token)}})
-     (:body)
-     (json/parse-string true)))
+(defn set-user!
+  [sat]
+  (try
+    (let [profile (get-user-profile (@u sat))]
+      ;; validate against expected user profile data
+      (if (valid-user-profile? profile)
+        (do
+          ;; (swap! u assoc :profile profile)
+          ;; (swap! u assoc :sat token)
+          true)
+        (do
+          (println "Login failed: Invalid user data.")
+          nil)))
+    (catch Exception e
+      (println "Login failed:" (.getMessage e))
+      nil)))
 
-(defn get-project [id] (get-meta id))
 
-(defn get-contributor
-  "Eventually this may handle two approaches to identify contributors.
-   For NF, use everyone named as dataLead on the project;
-   though unfortunately this might not reusable by other DCCs
-  that don't have the same exact concept/annotation of dataLead.
-  Contributors can be all the users who uploaded or modified the files."
+(defn set-api-key!
+  "Use for switching between OpenAI API keys, as there can be org/personal/project-specific keys.
+  TODO: Check whether valid by making a call to OpenAI service."
+  [oak]
+  (do
+    (swap! u assoc :oak oak)
+    true))
+
+
+(defn token-input-def
+  [placeholder]
+  (let [console (System/console)
+        token (.readPassword console placeholder nil)]
+    token))
+
+
+;;(defn token-input-tui
+;;  [placeholder]
+;;  (s/trim (:result (b/gum :input :password true :placeholder placeholder))))
+
+
+(defn prompt-for-sat
+  "Prompt for Synapse authentication token."
   []
-  (get-in @project [:dataLead :value]))
-
-(defn source-values
-  "Set values mostly using manifest summary, though selected props have special methods."
-  [scope props ref]
-  (into {}
-        (map (fn [[k v]]
-               [k (cond
-                    (= "title" k) "TBD"
-                    (= "description" k) "TBD"
-                    (= "accessType" k) (label-access scope)
-                    (= "creator" k) (str (@user :firstName) (@user :lastName))
-                    (= "contributor" k) (get-contributor)
-                    :else (fill-val k ref)
-                    )])
-             props)))
+  (let [sat (token-input-def "Synapse auth token: ")]
+    (if (set-user! sat)
+      (println "Hi" (get-in @u [:profile :firstName])))))
 
 
+(defn prompt-for-api-key
+  []
+  (let [api-key (token-input-def "OpenAI API key: ")]
+    (if (set-api-key! api-key)
+      true
+      (println "No OpenAI API key. Exiting."))))
+
+
+(defn check-syn-creds []
+  (when-not (@u :sat)
+     (println "Synapse credentials not detected. Please login.")
+     (prompt-for-sat)))
+
+
+(defn check-openai-creds
+  "TODO: Handle if user has no credits left."
+  []
+  (when-not (@u :oak)
+    (println "OpenAI API key not detected. Please provide.")
+    (prompt-for-api-key)
+    ))
+
+
+(defn delegate
+  []
+  "TODO")
+
+
+(defn working-chat
+  []
+  "TODO")
 
 
 (defn save-chat
@@ -232,3 +170,10 @@
   (let [json-str (json/generate-string @messages)]
     (with-open [wr (io/writer filename)]
       (.write wr json-str))))
+
+
+(defn -main []
+  (do
+    (check-syn-creds)
+    (check-openai-creds)
+    ))
