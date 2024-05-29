@@ -110,11 +110,6 @@
     (println "Please choose a DCC:" (apply str options))))
 
 
-(defn set-dcc-configs
-  []
- )
-
-
 (defn setup
   []
   (check-syn-creds)
