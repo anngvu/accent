@@ -73,9 +73,10 @@
   (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) schematic-entity-schema)))
 
 
-(def schema-reference
-  "More entities may be added"
-  schematic-entity-schema)
+(defn show-reference-schema
+  "Print schema-reference"
+   []
+   (str schematic-entity-schema))
 
 
 (defn key-fn [k]
@@ -140,7 +141,11 @@
     (d/transact! conn g)))
 
 
-(defn run-query [conn q]
+(defn run-query
+  "Send query to connection conn"
+  [conn q]
   (d/q q (d/db conn)))
 
+
 ;(def conn (d/get-conn "/tmp/datalevin/mydb" dlvn-schema))
+;
