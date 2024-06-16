@@ -7,7 +7,7 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Helpers - no API
+;; Helpers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn is-numeric [s]
@@ -169,7 +169,8 @@
 (defn get-contributor
   "The most parsimonious approach (with fewest assumptions) for designating contributors
   is to use all unique people who uploaded files part of the dataset.
-  However, DCCs may want to derive contributors each in their own special and potentially non-portable way
+  However, DCCs may want to derive contributors
+  each in their own special and potentially non-portable way
   (see get-contributor-nf).
   Ultimately, this shouldn't be expected to be initialized with perfect values and
   should be pointed out as one of the more high-priority items for human review."
@@ -236,6 +237,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defn curate-dataset-folder
+(defn curate-dataset
   "Controlled curation flow for dataset folder->dataset entity with complete metadata"
-  [id])
+  [id]
+  "TODO")
