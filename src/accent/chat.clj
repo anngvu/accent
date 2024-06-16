@@ -10,7 +10,6 @@
 (defonce messages (atom [{:role    "system"
                           :content "You are a helpful assistant"}]))
 
-
 (def tools [
             {:type "function"
              :function
@@ -24,8 +23,22 @@
                                             :description "The manifest id, something like 'syn12345678'. In most cases, the manifest can be automatically discovered, but when a manifest is not in the expected location the id should be provided."}
                }}
               :required ["dataset_id"] }}
-             {:name "ask_database"
-              :description (str "Use this to help answer user questions about entities in the different data coordinating centers data models. 
+
+            {:type "function"
+            :function
+            {:name "get_database_schema"
+             :description (str "If a database schema reference is not present to help construct a query that answers the user question, use this to get the schema first."
+                               "Then use ask_database with the constructed query.")
+             :parameters
+             {:type "object"
+              :properties {}
+              :required []
+            }}}
+
+            {:type "function"
+             :function
+            {:name "ask_database"
+              :description (str "Use this to answer user questions about the different data coordinating center data models and entities.
                                  Input should be a valid Datomic query.")
               :parameters
               {:type "object"
@@ -35,7 +48,7 @@
                          (str "Datomic query extracting info to answer the user's question." 
                               "Datomic query should be written and returned as plain text using this schema: "
                               "TBD")}}
-               :required "query"}}
+               :required ["query"]}}}
             ])
 
 
@@ -64,9 +77,18 @@
   "TODO")
 
 
-(defn working-chat
+(defn chat
   []
-  "TODO")
+  (print "New message:")
+  (flush)
+  (loop [prompt (read-line)]
+    (let [resp (response (request prompt))]
+      (println)
+      (print resp)
+      (println)
+      (print " ---- next message:")
+      (flush)
+      (recur (read-line)))))
 
 
 (defn save-chat
