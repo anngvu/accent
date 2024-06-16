@@ -19,7 +19,7 @@ There are many responsibilities[^2][^3], but the general list can be refined and
 
 **To be clear, the Assisted Curation/Content ENhancement Tool is a proof-of-concept CLI tool only focuses on helping with the first two responsibilities.** 
 In its first iteration, ACCENT narrows down the scope of the curation assistance even further, to dataset curation for the NF-OSI use case. 
-The idea is to work out the "wraper" interface into a usable and productive workflow first. 
+The idea is to work out the "wrapper" interface into a usable and productive workflow first. 
 
 ### Usage
 
@@ -35,24 +35,48 @@ schematic JSON-LD models** - You want to develop your DCC-specific model with th
 
 Planned functionality have been scoped/mapped as below for specific versions:
 
+- **v0.01** - Undifferentiated infrastructure  
+    - Basic state management for user/api tokens, model, messages
+    - Basic working chat through console (see v0.4 for interface enhancements)
+    - Simple function to save chats (for users: history for reference / for development: for testing, user research and analysis)
+    - Working project configuration and build scripts
 - **v0.1** - First assisted workflow for dataset curation for NF use case, under the umbrella of Responsibility 1.
+    - Automatically pull in DCC configurations at startup -- we should know to use consistent DCC settings, and not have to specify them manually either
+    - Add DCC configuration to state management
+    - Implement low-level Synapse APIs needed for this curation
+    - Basic flow control and prompts related to this workflow
+    - Working `curate_dataset` function call
 - **v0.2** - MVP for data model exploration and comparison for data models in the schematic JSON-LD with a chat interface (RAG), relevant to Responsibility 2.
+    - ETL of data model graphs at startup
+    - Local database instantiation and management
+    - Appropriate prompts for RAG
+    - Working `ask_database` function call
 - **v0.3** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
+    - Appropriate prompts for viz
+    - Example `visualize` function call for data model
+    - Example `visualize` function call for dataset
+- **v0.4** - Implement upgraded interface as alternative to the basic console: TUI or simple web UI.
+
+
 
 Nothing more is planned until after the Evaluation (below).
 
 #### Evaluation
 
-More curation workflows or other features are dependent on the proof-of-concept feedback. After all, the design may need to change significantly. 
+There are ideas for other helper workflows and functionality, but these are dependent on first round of the proof-of-concept feedback, in case this is not the right approach/the design needs to change significantly. 
 To inform whether this actually benefits data management work, we need to to evaluate the proof-of-concept in several ways. 
 We would have to ask a user, "How would you compare using this versus trying to accomplish **the same work goal** using a different workflow that": 
 1. *Doesn't incorporate* any LLM and does things manually, with custom scripting, or with some other non-AI app.
 2. Incorporates ChatGPT but via the default online chat interface.
 3. Incorporates LLM/multiple LLMs through a different custom interface/solution.
 
+There is also workflow-specific research needed:
+
+##### Data model exploration
+- 
+
 ---
 
 [^1]: https://mitsloan.mit.edu/ideas-made-to-matter/how-generative-ai-can-boost-highly-skilled-workers-productivity
 [^2]: https://www.indeed.com/hire/job-description/data-manager#toc-jumpto-1
 [^3]: https://www.icpsr.umich.edu/web/pages/datamanagement/index.html 
-
