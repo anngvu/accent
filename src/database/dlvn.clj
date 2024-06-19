@@ -113,11 +113,27 @@
 (defn as-bool [s] (boolean (str/replace s "sms:" "")))
 
 
+(defn rules-map-to-array [input-map]
+  (mapv (fn [[k v]]
+          (let [key-str (name k)]
+            (str key-str (when (not (empty? v)) (str " " v)))))
+        input-map))
+
+
+(defn transform-rules-conditionally
+  "Checks and delegates type of transformation where needed"
+  [entity]
+  (let [rules (entity :sms/validationRules)]
+    (if (map? rules)
+      (update entity :sms/validationRules rules-map-to-array)
+      entity)))
+
 (defn loadable-graph
-  "Prep the JSON-LD graph for loading"
+  "Transform the JSON-LD graph for loading, ironing out some inconsistencies"
   [graph dcc]
   (->>(map #(assoc % :dcc dcc) graph)
       (map #(update % :sms/required as-bool))
+      (map #(transform-rules-conditionally %))
       (map rm-default)))
 
 
@@ -144,7 +160,7 @@
     [?e :sms/required true]
     :group-by ?dcc])
 
-(def unique-dcc
+(def unique-dccs
   '[:find ?dcc
     :where
    [?e :dcc ?dcc]])
@@ -240,7 +256,7 @@
 
 
 (defn load-graphs!
-  "Load graphs one-by-one with error handling to report problematic graphs."
+  "Load a collection of graphs, skips problematic graphs."
   [conn graphs]
   (doseq [[idx g] (map-indexed vector graphs)]
     (try
@@ -249,6 +265,16 @@
         (println "Failed to transact graph at index:" idx)
         (println "Error:" (.getMessage e))))))
 
+
+(defn load-graph-incrementally!
+  "Load a graph entity-by-entity; method is mainly to check entities that contain issues."
+  [conn graph]
+  (doseq [entity graph]
+    (try
+      (d/transact! conn [entity])
+      (catch Exception e
+        (println "Failed at entity:" (entity :rdfs/label))
+        (println "Error:" (.getMessage e))))))
 
 (defn run-query
   "Send query to connection conn"
