@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.curate :refer [curate-dataset]]
-            [database.dlvn :refer [show-reference-schema run-query]]
+            [database.dlvn :refer [show-reference-schema ask-database]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
@@ -63,7 +63,7 @@
 
 (def allowed-tools {"curate_dataset" curate-dataset
                     "get_database_schema" show-reference-schema
-                    "ask_database" run-query})
+                    "ask_database" ask-database})
 
 (defn request [prompt]
     (swap! messages conj {:role    "user"
