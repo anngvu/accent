@@ -4,7 +4,12 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [cheshire.core :as json]
-            [datalevin.core :as d]))
+            [datalevin.core :as d]
+            [datalevin.util :as u])
+  (:import  [java.util UUID]))
+
+
+(def db-dir (u/tmp-dir (str "datalevin-" (UUID/randomUUID))))
 
 
 (def schematic-entity-schema
@@ -25,7 +30,8 @@
  {:db/ident       :rdfs/comment
   :db/valueType   :db.type/string
   :db/cardinality :db.cardinality/one
-  :db/doc         "Descriptive comment about the entity"}
+  :db/fulltext     true
+  :db/doc         "Description of the entity"}
 
  {:db/ident       :rdfs/label
   :db/valueType   :db.type/string
@@ -57,10 +63,15 @@
   :db/cardinality :db.cardinality/many
   :db/doc         "Validation rules associated with the entity"}
 
+ {:db/ident       :sms/requiresComponent
+  :db/valueType   :db.type/ref
+  :db/cardinality :db.cardinality/many
+  :db/doc         "Other components associated with entity"}
+
  {:db/ident       :sms/requiresDependency
   :db/valueType   :db.type/ref
   :db/cardinality :db.cardinality/many
-  :db/doc         "Components associated with the entity"}
+  :db/doc         "Dependencies within the entity"}
 
  {:db/ident       :schema/rangeIncludes
   :db/valueType   :db.type/ref
@@ -70,6 +81,7 @@
 
 
 (def dlvn-schema
+  "Datalevin schema wants structure {:ns/attr {:db/valueType type ...}}"
   (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) schematic-entity-schema)))
 
 
@@ -101,51 +113,181 @@
 (defn as-bool [s] (boolean (str/replace s "sms:" "")))
 
 
-(defn good-graph
+(defn loadable-graph
   "Prep the JSON-LD graph for loading"
-  [jsonld dcc]
-  (->>(jsonld :graph)
-      (map #(assoc % :dcc dcc))
+  [graph dcc]
+  (->>(map #(assoc % :dcc dcc) graph)
       (map #(update % :sms/required as-bool))
       (map rm-default)))
 
 
-(def query-required
+;; TEST QUERIES
+;; TODO move to tests
+;; (run-query conn query-required)
+;; (d/clear conn)
+
+(def which-required
  '[:find ?e ?displayName
    :where
    [?e :sms/required true]
    [?e :sms/displayName ?displayName]])
 
+(def count-required
+'[:find (count ?e)
+  :where
+  [?e :sms/required true]])
 
+(def count-required-by-dcc
+  '[:find ?dcc (count ?e)
+    :where
+    [?e :dcc ?dcc]
+    [?e :sms/required true]
+    :group-by ?dcc])
+
+(def unique-dcc
+  '[:find ?dcc
+    :where
+   [?e :dcc ?dcc]])
+
+(def largest-dcc-model
+  '[:find ?dcc (count ?e)
+    :where
+    [?e :dcc ?dcc]
+    :group-by ?dcc
+    :order (desc (count ?e))
+    :limit 1])
+
+(def scrnaseq-template
+  '[:find ?attr ?val
+    :where
+    [?e :rdfs/label "ScRNA-seqLevel1"]
+    [?e ?attr ?val]])
+
+(def required-by-dcc
+  "TODO: debug and simplify"
+  '[:find ?dcc (count ?e-required) (count ?e-not-required)
+    :where
+    [?e :dcc ?dcc]
+    (or
+     [?e :sms/required true]
+     [?e :sms/required false])
+    [(ground true) ?true]
+    [(ground false) ?false]
+    (or
+     [(and [?e :sms/required true] [?e ?e-required])]
+     [(and [?e :sms/required false] [?e ?e-not-required])])
+    :group-by ?dcc])
+
+
+(def find-self-dep
+  '[:find ?label
+    :where
+    [?e :sms/requiresDependency ?e]
+    [?e :rdfs/label ?label]])
+
+
+(def by-id
+  '[:find ?attr ?val
+    :in $ ?entityId
+    :where
+    [?e :id ?entityId]
+    [?e ?attr ?val]])
+
+
+(def ratio-required
+  "TODO: debug and simplify"
+ '[:find ?dcc ?required-count ?not-required-count (/ ?required-count ?not-required-count)
+   :where
+   [?e :dcc ?dcc]
+   [?e :sms/required true]])
+
+
+(def find-dataset-schema
+  "Find the dataset schema in the model"
+  '[])
+
+
+;; RULES
 ;; TODO translate schematic rules to attribute predicates;
 ;; Then add fun to transform graph data to install attribute preds
+
+(defn get-model-url [config]
+  (get-in config [:config :dcc :data_model_url]))
+
+
+(defn graph-from-url
+  [url]
+  (->>(read-json url key-fn)
+      (:graph)))
+
 
 
 (defn transform-dca-config [config]
   {:dcc (get-in config [:config :dcc :name])
-   :data_model_url (get-in config [:config :dcc :data_model_url])})
+   :data_model_url (get-model-url config)})
 
+
+(defn namespaced-graph [config] (loadable-graph (config :graph) (config :dcc)))
 
 (defn get-model-graphs
-  "Get model graphs, ones unable to be retrieved are nil and removed"
+  "Pipeline to process a DCA config, prep and import model graphs.
+  Ones unable to be retrieved are nil and removed"
   [configs]
   (->>(map transform-dca-config configs)
-      (map #(assoc % :data_model (read-json (% :data_model_url) key-fn)))
-      (remove #(nil? (% :data_model)))
-      (map #(assoc % :graph (good-graph (% :data_model) (:dcc %))))
-      (mapv #(% :graph))))
+      (map #(assoc % :graph (graph-from-url (% :data_model_url))))
+      (remove #(nil? (% :graph)))
+      (mapv namespaced-graph)))
 
 
-(defn load-models [conn gs]
-  (doseq [g gs]
-    (d/transact! conn g)))
+(defn load-graphs!
+  "Load graphs one-by-one with error handling to report problematic graphs."
+  [conn graphs]
+  (doseq [[idx g] (map-indexed vector graphs)]
+    (try
+      (d/transact! conn g)
+      (catch Exception e
+        (println "Failed to transact graph at index:" idx)
+        (println "Error:" (.getMessage e))))))
 
 
 (defn run-query
   "Send query to connection conn"
-  [conn q]
-  (d/q q (d/db conn)))
+  ([conn q]
+   (d/q q (d/db conn)))
+  ([conn q variable]
+   (d/q q (d/db conn) variable)))
 
 
-;(def conn (d/get-conn "/tmp/datalevin/mydb" dlvn-schema))
+(defn ask-database
+  [conn query-string]
+  (let [q (read-string query-string)
+        answer (run-query conn q)]
+    (println-str answer)))
+
+
+(defn write-json-file [data file-path]
+  (with-open [writer (io/writer file-path)]
+    (json/generate-stream data writer)))
+
+
+;; STATS
+;;
+(defn graph-stats
+  "Stats for graphs inserted into db. TODO: implement more stats."
+  [graphs]
+  (count graphs))
+
+;; OPERATIONS
+
+(def conn (d/get-conn db-dir dlvn-schema))
+(def dcc-configs (get-dcc-configs))
+(def graphs (get-model-graphs dcc-configs))
+;(def htan (graphs 5))
+;(def demo (graphs 0))
+; (d/transact! conn demo)
+(load-graphs! conn graphs)
 ;
+
+
+;; Save fallback DCC configs
+;;(write-json-file dcc-configs "configs.json")
