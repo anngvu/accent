@@ -218,9 +218,12 @@
    [?e :sms/required true]])
 
 
-(def find-dataset-schema
-  "Find the dataset schema in the model"
-  '[])
+(def find-portal-dataset
+  "Find portal dataset schema via exact name match (compare this against text search)"
+  '[:find ?attr ?val
+    :where
+    [?e :rdfs/label "PortalDataset"]
+    [?e ?attr ?val]])
 
 
 ;; RULES
@@ -235,7 +238,6 @@
   [url]
   (->>(read-json url key-fn)
       (:graph)))
-
 
 
 (defn transform-dca-config [config]
@@ -297,23 +299,26 @@
 
 
 ;; STATS
-;;
 (defn graph-stats
   "Stats for graphs inserted into db. TODO: implement more stats."
   [graphs]
   (count graphs))
 
+
 ;; OPERATIONS
+(defn full-load-db []
+  (let [conn (d/get-conn db-dir dlvn-schema)
+        dcc-configs (get-dcc-configs)
+        graphs (get-model-graphs dcc-configs)]
+    (load-graphs! conn graphs)))
 
-(def conn (d/get-conn db-dir dlvn-schema))
-(def dcc-configs (get-dcc-configs))
-(def graphs (get-model-graphs dcc-configs))
-;(def htan (graphs 5))
-;(def demo (graphs 0))
-; (d/transact! conn demo)
-(load-graphs! conn graphs)
-;
 
+(defn small-test-load []
+  (let [conn (d/get-conn db-dir dlvn-schema)
+        dcc-configs (get-dcc-configs)
+        graphs (get-model-graphs dcc-configs)
+        demo (graphs 0)]
+    (d/transact! conn demo)))
 
 ;; Save fallback DCC configs
 ;;(write-json-file dcc-configs "configs.json")
