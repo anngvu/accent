@@ -9,10 +9,11 @@
   (:import  [java.util UUID]))
 
 
+(defonce conn (atom nil))
+
 (def db-dir (u/tmp-dir (str "datalevin-" (UUID/randomUUID))))
 
-
-(def schematic-entity-schema
+(def schematic-model-schema
   ;; :db/ident       :schema/isPartOf
   ;; during import, this is removed because the isPartOf "http://schema.biothings.io"
   ;; is not useful and is technically not true (unless the model has been registered)
@@ -77,19 +78,141 @@
   :db/valueType   :db.type/ref
   :db/cardinality :db.cardinality/many
   :db/doc         "Enums or valid values included in the range of the entity"}
+
  ])
 
 
-(def dlvn-schema
-  "Datalevin schema wants structure {:ns/attr {:db/valueType type ...}}"
-  (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) schematic-entity-schema)))
+(def dcc-schema
 
+  [{:db/ident :dcc/name
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/unique :db.unique/identity
+    :db/doc "Name of the DCC"}
+
+   {:db/ident :dcc/logo_location
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "URL for the DCC logo"}
+
+   {:db/ident :dcc/data_model_url
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "URL for the data model"}
+
+   {:db/ident :dcc/synapse_asset_view
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "Synapse asset view"}
+
+   {:db/ident :dcc/data_model_info
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "Information about the data model"}
+
+   {:db/ident :dcc/dcc_help_link
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "Help link for the DCC"}
+
+   {:db/ident :dcc/logo_link
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "Link for the logo"}
+
+   {:db/ident :dcc/portal_help_link
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "Help link for the portal"}
+
+   {:db/ident :dcc/template_menu_config_file
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "URL for the template menu config file"}])
+
+
+(def schematic-config-schema
+
+  [{:db/ident :schematic/config-client
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/doc "Client for which this configuration applies"}
+
+    {:db/ident :schematic/manifest_generate
+     :db/valueType :db.type/ref
+     :db/cardinality :db.cardinality/one
+     :db/isComponent true
+     :db/doc "Manifest generation configuration"}
+
+    {:db/ident :manifest_generate/output_format
+     :db/valueType :db.type/string
+     :db/cardinality :db.cardinality/one
+     :db/doc "Output format for manifest generation"}
+
+    {:db/ident :manifest_generate/use_annotations
+     :db/valueType :db.type/boolean
+     :db/cardinality :db.cardinality/one
+     :db/doc "Whether to use annotations in manifest generation"}
+
+    {:db/ident :schematic/model_validate
+     :db/valueType :db.type/ref
+     :db/cardinality :db.cardinality/one
+     :db/isComponent true
+     :db/doc "Model validation configuration"}
+
+    {:db/ident :model_validate/restrict_rules
+     :db/valueType :db.type/boolean
+     :db/cardinality :db.cardinality/one
+     :db/doc "Whether to restrict rules in model validation"}
+
+    {:db/ident :schematic/model_submit
+     :db/valueType :db.type/ref
+     :db/cardinality :db.cardinality/one
+     :db/isComponent true
+     :db/doc "Model submission configuration"}
+
+    {:db/ident :model_submit/use_schema_labels
+     :db/valueType :db.type/boolean
+     :db/cardinality :db.cardinality/one
+     :db/doc "Whether to use schema labels in model submission"}
+
+    {:db/ident :model_submit/table_manipulation
+     :db/valueType :db.type/string
+     :db/cardinality :db.cardinality/one
+     :db/doc "Table manipulation method"}
+
+    {:db/ident :model_submit/manifest_record_type
+     :db/valueType :db.type/string
+     :db/cardinality :db.cardinality/one
+     :db/doc "Manifest record type"}
+
+    {:db/ident :model_submit/hide_blanks
+     :db/valueType :db.type/boolean
+     :db/cardinality :db.cardinality/one
+     :db/doc "Whether to hide blanks"}])
+
+;; ALIASES
+;; [:db/add :dcc/name :db/ident :name]
+
+
+(defn to-dlvn-schema
+  "Datalevin schema wants structure {:ns/attr {:db/valueType type ...}}"
+  [map-schema]
+  (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) map-schema)))
+
+(def db-schema
+  (into {} (mapcat to-dlvn-schema [schematic-model-schema schematic-config-schema dcc-schema])))
 
 (defn show-reference-schema
-  "Print schema-reference"
+  "Print a schema reference. NOTE Intentionally limited to the model graph schema."
    []
-   (str schematic-entity-schema))
+   (str schematic-model-schema))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; GRAPH MODEL TRANSFORMATIONS
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn key-fn [k]
   (->(str/replace k "@" "")
@@ -128,6 +251,7 @@
       (update entity :sms/validationRules rules-map-to-array)
       entity)))
 
+
 (defn loadable-graph
   "Transform the JSON-LD graph for loading, ironing out some inconsistencies"
   [graph dcc]
@@ -136,11 +260,21 @@
       (map #(transform-rules-conditionally %))
       (map rm-default)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; OTHER TRANSFORMATIONS
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; TEST QUERIES
-;; TODO move to tests
-;; (run-query conn query-required)
-;; (d/clear conn)
+(defn loadable-dcc
+  [dcc-config]
+  )
+
+;;;;;;;;;;;;
+;;
+;; QUERIES
+;;
+;;;;;;;;;;;
 
 (def which-required
  '[:find ?e ?displayName
@@ -278,6 +412,7 @@
         (println "Failed at entity:" (entity :rdfs/label))
         (println "Error:" (.getMessage e))))))
 
+
 (defn run-query
   "Send query to connection conn"
   ([conn q]
@@ -306,19 +441,23 @@
 
 
 ;; OPERATIONS
-(defn full-load-db []
-  (let [conn (d/get-conn db-dir dlvn-schema)
-        dcc-configs (get-dcc-configs)
+(defn init-db! []
+  (let [dcc-configs (get-dcc-configs)
         graphs (get-model-graphs dcc-configs)]
-    (load-graphs! conn graphs)))
+      (reset! conn (d/get-conn db-dir db-schema))
+      (load-graphs! @conn graphs)))
 
 
-(defn small-test-load []
-  (let [conn (d/get-conn db-dir dlvn-schema)
-        dcc-configs (get-dcc-configs)
-        graphs (get-model-graphs dcc-configs)
-        demo (graphs 0)]
-    (d/transact! conn demo)))
+(defn init-dev-db! []
+  (let [dcc-configs (get-dcc-configs {:url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"})
+        graphs (get-model-graphs dcc-configs)]
+    (reset! conn (d/get-conn db-dir db-schema))
+    (load-graphs! @conn graphs)))
+
+
+(defn clear-db! []
+  (d/clear @conn))
+
 
 ;; Save fallback DCC configs
 ;;(write-json-file dcc-configs "configs.json")
