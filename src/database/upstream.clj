@@ -15,15 +15,15 @@
     (finally nil)))
 
 
-(defn get-from-config-store
-  "Load configs from the config store, i.e. the DCA config repo"
-  []
-  (let [rel "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
-        tenants (str rel "tenants.json")]
+(defn get-dca-configs
+  "Load configs from the DCA config repo, base url can specify a specific branch"
+  [& {:keys [url] :or {url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"}}]
+  (let [tenants (str url "tenants.json")]
+    (println "Getting from" url)
     (some->>(read-json tenants)
             (:tenants)
             (mapv (fn [m] {:name (:name m)
-                           :config (read-json (str rel (:config_location m)))})))))
+                           :config (read-json (str url (:config_location m)))})))))
 
 
 (defn read-local-configs
@@ -33,11 +33,12 @@
 
 
 (defn get-dcc-configs
-  "Get configs from the config store, fallback to local configs.json if fail"
-  []
+  "Get configs from a config store, currently defaults to DCA repo,
+  with fallback to local configs.json, though there is possibility for other config store type."
+  [& {:keys [url]}]
   (try
-    (get-from-config-store)
-    (catch Exception e
+    (get-dca-configs {:url url})
+    (catch Exception _
       (println "Error fetching latest DCC config data, falling back to local data which may be out of date.")
       (read-local-configs))))
 
