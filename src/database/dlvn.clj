@@ -3,6 +3,7 @@
   (:require [database.upstream :refer :all]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [clojure.walk :as walk]
             [cheshire.core :as json]
             [datalevin.core :as d]
             [datalevin.util :as u])
@@ -21,7 +22,7 @@
 [{:db/ident       :id
   :db/valueType   :db.type/string
   :db/unique      :db.unique/identity
-  :db/doc         "A unique identifier for the entity"}
+  :db/doc         "Identifier for the entity"}
 
  {:db/ident       :type
   :db/valueType   :db.type/string
@@ -96,7 +97,7 @@
     :db/doc "URL for the DCC logo"}
 
    {:db/ident :dcc/data_model_url
-    :db/valueType :db.type/string
+    :db/valueType :db.type/string  ; :db.type/uri not supported
     :db/cardinality :db.cardinality/one
     :db/doc "URL for the data model"}
 
@@ -128,16 +129,37 @@
    {:db/ident :dcc/template_menu_config_file
     :db/valueType :db.type/string
     :db/cardinality :db.cardinality/one
-    :db/doc "URL for the template menu config file"}])
+    :db/doc "URL to resource defining public templates"}
+
+   {:db/ident :config/schematic-working
+    :db/valueType :db.type/ref
+    :db/cardinality :db.type/boolean
+    :db/doc "Ref to a **working** schematic config to use, which may or may not be standard (could reflect dev config)"}
+
+   ;;{:db/ident :config/schematic }
+   ])
+
+
+(def config-schema
+  "A configuration is an arrangement of elements in a particular form or combination.
+  This attemps a basic model of software app configuration, where what's configured are
+  usually the database, frontend, and other services to provide the overall desired functionality."
+  [{:db/ident :config/app
+    :db/valueType  :db.type/string ; :db.type/uri not currently supported
+    :db/cardinality :db.cardinality/one
+    :db/doc "App instance URI for which this config applies, e.g. http://localhost:8080 or https://myapp.com"}
+
+
+   {:db/ident :config/uri
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one
+    :db/unique :db.unique/identity
+    :db/doc "URL representing source location and identity of the config"}])
 
 
 (def schematic-config-schema
 
-  [{:db/ident :schematic/config-client
-    :db/valueType :db.type/string
-    :db/cardinality :db.cardinality/one
-    :db/doc "Client for which this configuration applies"}
-
+  [
     {:db/ident :schematic/manifest_generate
      :db/valueType :db.type/ref
      :db/cardinality :db.cardinality/one
@@ -201,10 +223,10 @@
   (into {} (map (fn [m] {(:db/ident m) (dissoc m :db/ident)}) map-schema)))
 
 (def db-schema
-  (into {} (mapcat to-dlvn-schema [schematic-model-schema schematic-config-schema dcc-schema])))
+  (into {} (mapcat to-dlvn-schema [schematic-model-schema dcc-schema config-schema schematic-config-schema])))
 
 (defn show-reference-schema
-  "Print a schema reference. NOTE Intentionally limited to the model graph schema."
+  "Print a schema reference. NOTE Intentionally limited to showing selected schema at a time to avoid overload."
    []
    (str schematic-model-schema))
 
@@ -252,10 +274,37 @@
       entity)))
 
 
-(defn loadable-graph
-  "Transform the JSON-LD graph for loading, ironing out some inconsistencies"
-  [graph dcc]
-  (->>(map #(assoc % :dcc dcc) graph)
+(defn create-prefix
+  [s]
+  (let [words (->(str/replace s #"DCC" "")
+                 (str/replace #"-.*" "")
+                 (str/split #" "))
+        first-word (first words)
+        initials (map #(str (first %)) (rest words))]
+    (->(apply str first-word initials)
+       (str/lower-case))))
+
+
+(defn re-prefix [m old-prefix new-prefix]
+  (let [replace-id (fn [id]
+                     (if (str/starts-with? id old-prefix)
+                       (str new-prefix (subs id (count old-prefix)))
+                       id))]
+    (walk/postwalk
+      (fn [x]
+        (if (and (map? x) (:id x))
+          (update x :id replace-id)
+          x))
+      m)))
+
+
+(defn transform-graph
+  "Transform the JSON-LD graph for loading:
+  (retyping) strings to other types as needed
+  (namespacing) update id prefix + add :dcc attribute"
+  [& {:keys [graph dcc]}]
+  (->>(map #(re-prefix % "bts" (create-prefix dcc)) graph)
+      (map #(assoc % :dcc dcc))
       (map #(update % :sms/required as-bool))
       (map #(transform-rules-conditionally %))
       (map rm-default)))
@@ -266,9 +315,41 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn loadable-dcc
-  [dcc-config]
-  )
+(defn namespace-immediate-keys
+  ([m] (namespace-immediate-keys m nil))
+  ([m parent-key]
+   (reduce-kv (fn [res k v]
+                (let [new-key (if parent-key
+                                (keyword (name parent-key) (name k))
+                                k)]
+                  (if (map? v)
+                    (assoc res new-key (namespace-immediate-keys v k))
+                    (assoc res new-key v))))
+              {}
+              m)))
+
+
+(defn link-schematic-config
+  "For now schematic configs are identified with config source url and linked accordingly."
+  [dcc schematic-config]
+  (assoc dcc :config/schematic [:config/uri (schematic-config :config/uri)]))
+
+
+(defn only-dcc-entity
+  "Takes a DCA config map to factor out the DCC entity"
+  [config url]
+  (->(select-keys (config :config) [:dcc])
+     (namespace-immediate-keys)
+     (:dcc)
+     (link-schematic-config url)))
+
+
+(defn transform-config-map
+  [config]
+  (->(dissoc config :name)
+     (namespace-immediate-keys)
+     (:config)))
+
 
 ;;;;;;;;;;;;
 ;;
@@ -379,16 +460,15 @@
    :data_model_url (get-model-url config)})
 
 
-(defn namespaced-graph [config] (loadable-graph (config :graph) (config :dcc)))
-
-(defn get-model-graphs
-  "Pipeline to process a DCA config, prep and import model graphs.
-  Ones unable to be retrieved are nil and removed"
+(defn prep-graphs
+  "Process a DCA config, import and prep model graphs.
+  Ones unable to be retrieved are nil and removed.
+  Ids are corrected to use the dcc prefix instead of 'bts:'."
   [configs]
   (->>(map transform-dca-config configs)
       (map #(assoc % :graph (graph-from-url (% :data_model_url))))
       (remove #(nil? (% :graph)))
-      (mapv namespaced-graph)))
+      (mapv transform-graph )))
 
 
 (defn load-graphs!
@@ -403,7 +483,7 @@
 
 
 (defn load-graph-incrementally!
-  "Load a graph entity-by-entity; method is mainly to check entities that contain issues."
+  "Load a graph entity-by-entity; method is mainly to identify entities with issues."
   [conn graph]
   (doseq [entity graph]
     (try
@@ -442,21 +522,24 @@
 
 ;; OPERATIONS
 (defn init-db! []
-  (let [dcc-configs (get-dcc-configs)
-        graphs (get-model-graphs dcc-configs)]
+  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
+        dcc-configs (get-dcc-configs {:url url})
+        graphs (prep-graphs dcc-configs)]
       (reset! conn (d/get-conn db-dir db-schema))
       (load-graphs! @conn graphs)))
 
 
 (defn init-dev-db! []
-  (let [dcc-configs (get-dcc-configs {:url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"})
-        graphs (get-model-graphs dcc-configs)]
+  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"
+        dcc-configs (get-dcc-configs {:url url})
+        graphs (prep-graphs dcc-configs)]
     (reset! conn (d/get-conn db-dir db-schema))
     (load-graphs! @conn graphs)))
 
 
 (defn clear-db! []
   (d/clear @conn))
+
 
 
 ;; Save fallback DCC configs
