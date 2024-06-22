@@ -489,20 +489,31 @@
 (defn load-dccs!
   [conn configs]
   (let [dccs (map transform-dcc configs)]
-    (doseq [d dccs]
-      (try
-        (d/transact! conn d)
-        (catch Exception e
-          (print-str "Failed to transact DCC:" d)
-          (println "Error:" (.getMessage e)))))))
+    (d/transact! conn dccs)))
 
 
 (defn load-schematic-configs!
   [conn configs]
   (let [s-configs (map transform-schematic-config configs)]
+    (d/transact! conn s-configs)))
+
+(defn load-dcc-incrementally!
+  [conn configs]
+  (let [dccs (map transform-dcc configs)]
+    (doseq [d dccs]
+      (try
+        (d/transact! conn [d])
+        (catch Exception e
+          (print-str "Failed to transact DCC:" d)
+          (println "Error:" (.getMessage e)))))))
+
+
+(defn load-schematic-config-incrementally!
+  [conn configs]
+  (let [s-configs (map transform-schematic-config configs)]
     (doseq [sc s-configs]
       (try
-        (d/transact! conn sc)
+        (d/transact! conn [sc])
         (catch Exception e
           (print-str "Failed to transact config:" sc)
           (println "Error:" (.getMessage e)))))))
