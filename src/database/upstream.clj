@@ -22,8 +22,11 @@
     (println "Getting from" url)
     (some->>(read-json tenants)
             (:tenants)
-            (mapv (fn [m] {:name (:name m)
-                           :config (read-json (str url (:config_location m)))})))))
+            (mapv (fn [m]
+                    (let [config-url (str url (:config_location m))]
+                      {:name (:name m)
+                       :config_url config-url
+                       :config (read-json config-url)}))))))
 
 
 (defn read-local-configs
