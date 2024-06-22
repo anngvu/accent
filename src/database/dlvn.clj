@@ -467,26 +467,22 @@
   (count graphs))
 
 
-(defn init-db! []
-  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
-        dcc-configs (get-dcc-configs {:url url})
-        graphs (prep-graphs dcc-configs)]
-      (reset! conn (d/get-conn db-dir db-schema))
-      (load-graphs! @conn graphs)))
-
-
-(defn init-dev-db! []
-  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"
+(defn init-db!
+  "Initialize db with data. Loading order matters. Should be graph, configs, dcc."
+  [{:keys [env] :or {env :prod}}]
+  (let [url-map {;; :dev "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/?/"
+                 :prod "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
+                 :test "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"}
+        url (get url-map env)
         dcc-configs (get-dcc-configs {:url url})
         graphs (prep-graphs dcc-configs)]
     (reset! conn (d/get-conn db-dir db-schema))
     (load-graphs! @conn graphs)
-    (load-dccs! @conn dcc-configs)
-    (load-schematic-configs! @conn dcc-configs)))
+    (load-schematic-configs! @conn dcc-configs)
+    (load-dccs! @conn dcc-configs)))
 
 
-(defn clear-db! []
-  (d/clear @conn))
+(defn clear-db! [] (d/clear @conn))
 
 
 ;; Save fallback DCC configs
@@ -499,10 +495,10 @@
 ;;
 ;;;;;;;;;;;
 
-(def which-required
- '[:find ?e ?displayName
+(def required?
+ '[:find ?e ?val
    :where
-   [?e :sms/required true]
+   [?e :sms/required ?val]
    [?e :sms/displayName ?displayName]])
 
 (def count-required
@@ -511,6 +507,7 @@
   [?e :sms/required true]])
 
 (def count-required-by-dcc
+  "TODO: debug"
   '[:find ?dcc (count ?e)
     :where
     [?e :dcc ?dcc]
