@@ -583,6 +583,14 @@
     [?e ?attr ?val]])
 
 
+(def get-nf-schematic-config
+  '[:find ?param ?val
+    :where
+    [?dcc :dcc/name "NF-OSI"]
+    [?dcc :config/schematic ?config]
+    [?config ?ref ?module]
+    [?module ?param ?val]])
+
 ;; RULES
 ;; TODO translate schematic rules to attribute predicates;
 ;; Then add fun to transform graph data to install attribute preds
