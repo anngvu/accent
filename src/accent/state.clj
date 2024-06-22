@@ -4,7 +4,7 @@
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
             [clojure.java.io :as io]
-            [database.upstream :refer [get-dcc-configs]]))
+            [database.dlvn :refer [run-query conn unique-dccs]]))
 
 
 (defonce u ;; user config
@@ -125,9 +125,8 @@
 (defn prompt-for-dcc
   []
   (println "Please wait while the app attempts to load the latest configs...")
-  (let [configs (get-dcc-configs)
-        options (mapv :name configs)]
-    (choose-dcc-def options)))
+  (let [options (run-query @conn unique-dccs)]
+    (choose-dcc-def (mapv first options))))
 
 
 (defn current-asset-view
