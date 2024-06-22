@@ -4,7 +4,7 @@
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
             [clojure.java.io :as io]
-            [database.dlvn :refer [run-query conn unique-dccs]]))
+            [database.dlvn :refer [init-db! run-query conn unique-dccs]]))
 
 
 (defonce u ;; user config
@@ -129,15 +129,9 @@
     (choose-dcc-def (mapv first options))))
 
 
-(defn current-asset-view
-  [dcc configs]
-  (->(filter #(= (:name %) dcc) configs)
-     (first)
-     (get-in [:config :dcc :synapse_asset_view])))
-
-
 (defn setup
   []
   (check-syn-creds)
   (check-openai-creds)
+  (init-db! {:env :test})
   (prompt-for-dcc))
