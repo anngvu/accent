@@ -353,101 +353,11 @@
      (assoc :config/uri (config :config_url))))
 
 
-;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;
 ;;
-;; QUERIES
+;; INIT / LOADING
 ;;
-;;;;;;;;;;;
-
-(def which-required
- '[:find ?e ?displayName
-   :where
-   [?e :sms/required true]
-   [?e :sms/displayName ?displayName]])
-
-(def count-required
-'[:find (count ?e)
-  :where
-  [?e :sms/required true]])
-
-(def count-required-by-dcc
-  '[:find ?dcc (count ?e)
-    :where
-    [?e :dcc ?dcc]
-    [?e :sms/required true]
-    :group-by ?dcc])
-
-(def unique-dccs
-  '[:find ?dcc
-    :where
-   [?e :dcc ?dcc]])
-
-(def largest-dcc-model
-  '[:find ?dcc (count ?e)
-    :where
-    [?e :dcc ?dcc]
-    :group-by ?dcc
-    :order (desc (count ?e))
-    :limit 1])
-
-(def scrnaseq-template
-  '[:find ?attr ?val
-    :where
-    [?e :rdfs/label "ScRNA-seqLevel1"]
-    [?e ?attr ?val]])
-
-(def required-by-dcc
-  "TODO: debug and simplify"
-  '[:find ?dcc (count ?e-required) (count ?e-not-required)
-    :where
-    [?e :dcc ?dcc]
-    (or
-     [?e :sms/required true]
-     [?e :sms/required false])
-    [(ground true) ?true]
-    [(ground false) ?false]
-    (or
-     [(and [?e :sms/required true] [?e ?e-required])]
-     [(and [?e :sms/required false] [?e ?e-not-required])])
-    :group-by ?dcc])
-
-
-(def find-self-dep
-  '[:find ?label
-    :where
-    [?e :sms/requiresDependency ?e]
-    [?e :rdfs/label ?label]])
-
-
-(def by-id
-  '[:find ?attr ?val
-    :in $ ?entityId
-    :where
-    [?e :id ?entityId]
-    [?e ?attr ?val]])
-
-
-(def ratio-required
-  "TODO: debug and simplify"
- '[:find ?dcc ?required-count ?not-required-count (/ ?required-count ?not-required-count)
-   :where
-   [?e :dcc ?dcc]
-   [?e :sms/required true]])
-
-
-(def find-portal-dataset
-  "Find portal dataset schema via exact name match (compare this against text search)"
-  '[:find ?attr ?val
-    :where
-    [?e :rdfs/label "PortalDataset"]
-    [?e ?attr ?val]])
-
-
-;; RULES
-;; TODO translate schematic rules to attribute predicates;
-;; Then add fun to transform graph data to install attribute preds
-
-;; BATCH LOADING
+;;;;;;;;;;;;;;;;;;;;
 
 (defn get-model-url [config]
   (get-in config [:config :dcc :data_model_url]))
@@ -557,7 +467,6 @@
   (count graphs))
 
 
-;; OPERATIONS
 (defn init-db! []
   (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
         dcc-configs (get-dcc-configs {:url url})
@@ -582,3 +491,98 @@
 
 ;; Save fallback DCC configs
 ;;(write-json-file dcc-configs "configs.json")
+
+
+;;;;;;;;;;;;
+;;
+;; QUERIES
+;;
+;;;;;;;;;;;
+
+(def which-required
+ '[:find ?e ?displayName
+   :where
+   [?e :sms/required true]
+   [?e :sms/displayName ?displayName]])
+
+(def count-required
+'[:find (count ?e)
+  :where
+  [?e :sms/required true]])
+
+(def count-required-by-dcc
+  '[:find ?dcc (count ?e)
+    :where
+    [?e :dcc ?dcc]
+    [?e :sms/required true]
+    :group-by ?dcc])
+
+(def unique-dccs
+  '[:find ?dcc
+    :where
+   [?e :dcc ?dcc]])
+
+(def largest-dcc-model
+  '[:find ?dcc (count ?e)
+    :where
+    [?e :dcc ?dcc]
+    :group-by ?dcc
+    :order (desc (count ?e))
+    :limit 1])
+
+(def scrnaseq-template
+  '[:find ?attr ?val
+    :where
+    [?e :rdfs/label "ScRNA-seqLevel1"]
+    [?e ?attr ?val]])
+
+(def required-by-dcc
+  "TODO: debug and simplify"
+  '[:find ?dcc (count ?e-required) (count ?e-not-required)
+    :where
+    [?e :dcc ?dcc]
+    (or
+     [?e :sms/required true]
+     [?e :sms/required false])
+    [(ground true) ?true]
+    [(ground false) ?false]
+    (or
+     [(and [?e :sms/required true] [?e ?e-required])]
+     [(and [?e :sms/required false] [?e ?e-not-required])])
+    :group-by ?dcc])
+
+
+(def find-self-dep
+  '[:find ?label
+    :where
+    [?e :sms/requiresDependency ?e]
+    [?e :rdfs/label ?label]])
+
+
+(def by-id
+  '[:find ?attr ?val
+    :in $ ?entityId
+    :where
+    [?e :id ?entityId]
+    [?e ?attr ?val]])
+
+
+(def ratio-required
+  "TODO: debug and simplify"
+ '[:find ?dcc ?required-count ?not-required-count (/ ?required-count ?not-required-count)
+   :where
+   [?e :dcc ?dcc]
+   [?e :sms/required true]])
+
+
+(def find-portal-dataset
+  "Find portal dataset schema via exact name match (compare this against text search)"
+  '[:find ?attr ?val
+    :where
+    [?e :rdfs/label "PortalDataset"]
+    [?e ?attr ?val]])
+
+
+;; RULES
+;; TODO translate schematic rules to attribute predicates;
+;; Then add fun to transform graph data to install attribute preds
