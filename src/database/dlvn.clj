@@ -353,6 +353,146 @@
      (assoc :config/uri (config :config_url))))
 
 
+;;;;;;;;;;;;;;;;;;;
+;;
+;; INIT / LOADING
+;;
+;;;;;;;;;;;;;;;;;;;;
+
+(defn get-model-url [config]
+  (get-in config [:config :dcc :data_model_url]))
+
+
+(defn graph-from-url
+  [url]
+  (->>(read-json url key-fn)
+      (:graph)))
+
+
+(defn transform-dca-config [config]
+  {:dcc (get-in config [:config :dcc :name])
+   :data_model_url (get-model-url config)})
+
+
+(defn prep-graphs
+  "Process seq of DCA configs, import and prep model graphs.
+  Ones unable to be retrieved are nil and removed.
+  Ids are corrected to use the dcc prefix instead of 'bts:'."
+  [configs]
+  (->>(map transform-dca-config configs)
+      (map #(assoc % :graph (graph-from-url (% :data_model_url))))
+      (remove #(nil? (% :graph)))
+      (mapv transform-graph )))
+
+
+(defn load-graphs!
+  "Load a collection of graphs, skips problematic graphs."
+  [conn graphs]
+  (doseq [[idx g] (map-indexed vector graphs)]
+    (try
+      (d/transact! conn g)
+      (catch Exception e
+        (println "Failed to transact graph at index:" idx)
+        (println "Error:" (.getMessage e))))))
+
+
+(defn load-dccs!
+  [conn configs]
+  (let [dccs (map transform-dcc configs)]
+    (d/transact! conn dccs)))
+
+
+(defn load-schematic-configs!
+  [conn configs]
+  (let [s-configs (map transform-schematic-config configs)]
+    (d/transact! conn s-configs)))
+
+(defn load-dcc-incrementally!
+  [conn configs]
+  (let [dccs (map transform-dcc configs)]
+    (doseq [d dccs]
+      (try
+        (d/transact! conn [d])
+        (catch Exception e
+          (print-str "Failed to transact DCC:" d)
+          (println "Error:" (.getMessage e)))))))
+
+
+(defn load-schematic-config-incrementally!
+  [conn configs]
+  (let [s-configs (map transform-schematic-config configs)]
+    (doseq [sc s-configs]
+      (try
+        (d/transact! conn [sc])
+        (catch Exception e
+          (print-str "Failed to transact config:" sc)
+          (println "Error:" (.getMessage e)))))))
+
+
+(defn load-graph-incrementally!
+  "Load a graph entity-by-entity; method is mainly to identify entities with issues."
+  [conn graph]
+  (doseq [entity graph]
+    (try
+      (d/transact! conn [entity])
+      (catch Exception e
+        (println "Failed at entity:" (entity :rdfs/label))
+        (println "Error:" (.getMessage e))))))
+
+
+(defn run-query
+  "Send query to connection conn"
+  ([conn q]
+   (d/q q (d/db conn)))
+  ([conn q variable]
+   (d/q q (d/db conn) variable)))
+
+
+(defn ask-database
+  [conn query-string]
+  (let [q (read-string query-string)
+        answer (run-query conn q)]
+    (println-str answer)))
+
+
+(defn write-json-file [data file-path]
+  (with-open [writer (io/writer file-path)]
+    (json/generate-stream data writer)))
+
+
+;; STATS
+(defn graph-stats
+  "Stats for graphs inserted into db. TODO: implement more stats."
+  [graphs]
+  (count graphs))
+
+
+(defn init-db! []
+  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
+        dcc-configs (get-dcc-configs {:url url})
+        graphs (prep-graphs dcc-configs)]
+      (reset! conn (d/get-conn db-dir db-schema))
+      (load-graphs! @conn graphs)))
+
+
+(defn init-dev-db! []
+  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"
+        dcc-configs (get-dcc-configs {:url url})
+        graphs (prep-graphs dcc-configs)]
+    (reset! conn (d/get-conn db-dir db-schema))
+    (load-graphs! @conn graphs)
+    (load-dccs! @conn dcc-configs)
+    (load-schematic-configs! @conn dcc-configs)))
+
+
+(defn clear-db! []
+  (d/clear @conn))
+
+
+;; Save fallback DCC configs
+;;(write-json-file dcc-configs "configs.json")
+
+
 ;;;;;;;;;;;;
 ;;
 ;; QUERIES
@@ -443,131 +583,14 @@
     [?e ?attr ?val]])
 
 
+(def get-nf-schematic-config
+  '[:find ?param ?val
+    :where
+    [?dcc :dcc/name "NF-OSI"]
+    [?dcc :config/schematic ?config]
+    [?config ?ref ?module]
+    [?module ?param ?val]])
+
 ;; RULES
 ;; TODO translate schematic rules to attribute predicates;
 ;; Then add fun to transform graph data to install attribute preds
-
-;; BATCH LOADING
-
-(defn get-model-url [config]
-  (get-in config [:config :dcc :data_model_url]))
-
-
-(defn graph-from-url
-  [url]
-  (->>(read-json url key-fn)
-      (:graph)))
-
-
-(defn transform-dca-config [config]
-  {:dcc (get-in config [:config :dcc :name])
-   :data_model_url (get-model-url config)})
-
-
-(defn prep-graphs
-  "Process seq of DCA configs, import and prep model graphs.
-  Ones unable to be retrieved are nil and removed.
-  Ids are corrected to use the dcc prefix instead of 'bts:'."
-  [configs]
-  (->>(map transform-dca-config configs)
-      (map #(assoc % :graph (graph-from-url (% :data_model_url))))
-      (remove #(nil? (% :graph)))
-      (mapv transform-graph )))
-
-
-(defn load-graphs!
-  "Load a collection of graphs, skips problematic graphs."
-  [conn graphs]
-  (doseq [[idx g] (map-indexed vector graphs)]
-    (try
-      (d/transact! conn g)
-      (catch Exception e
-        (println "Failed to transact graph at index:" idx)
-        (println "Error:" (.getMessage e))))))
-
-
-(defn load-dccs!
-  [conn configs]
-  (let [dccs (map transform-dcc configs)]
-    (doseq [d dccs]
-      (try
-        (d/transact! conn d)
-        (catch Exception e
-          (print-str "Failed to transact DCC:" d)
-          (println "Error:" (.getMessage e)))))))
-
-
-(defn load-schematic-configs!
-  [conn configs]
-  (let [s-configs (map transform-schematic-config configs)]
-    (doseq [sc s-configs]
-      (try
-        (d/transact! conn sc)
-        (catch Exception e
-          (print-str "Failed to transact config:" sc)
-          (println "Error:" (.getMessage e)))))))
-
-
-(defn load-graph-incrementally!
-  "Load a graph entity-by-entity; method is mainly to identify entities with issues."
-  [conn graph]
-  (doseq [entity graph]
-    (try
-      (d/transact! conn [entity])
-      (catch Exception e
-        (println "Failed at entity:" (entity :rdfs/label))
-        (println "Error:" (.getMessage e))))))
-
-
-(defn run-query
-  "Send query to connection conn"
-  ([conn q]
-   (d/q q (d/db conn)))
-  ([conn q variable]
-   (d/q q (d/db conn) variable)))
-
-
-(defn ask-database
-  [conn query-string]
-  (let [q (read-string query-string)
-        answer (run-query conn q)]
-    (println-str answer)))
-
-
-(defn write-json-file [data file-path]
-  (with-open [writer (io/writer file-path)]
-    (json/generate-stream data writer)))
-
-
-;; STATS
-(defn graph-stats
-  "Stats for graphs inserted into db. TODO: implement more stats."
-  [graphs]
-  (count graphs))
-
-
-;; OPERATIONS
-(defn init-db! []
-  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/prod/"
-        dcc-configs (get-dcc-configs {:url url})
-        graphs (prep-graphs dcc-configs)]
-      (reset! conn (d/get-conn db-dir db-schema))
-      (load-graphs! @conn graphs)))
-
-
-(defn init-dev-db! []
-  (let [url "https://raw.githubusercontent.com/Sage-Bionetworks/data_curator_config/staging/"
-        dcc-configs (get-dcc-configs {:url url})
-        graphs (prep-graphs dcc-configs)]
-    (reset! conn (d/get-conn db-dir db-schema))
-    (load-graphs! @conn graphs)
-    (load-dccs! @conn dcc-configs)
-    (load-schematic-configs! @conn dcc-configs)))
-
-
-(defn clear-db! []
-  (d/clear @conn))
-
-
-;; Save fallback DCC configs
-;;(write-json-file dcc-configs "configs.json")
