@@ -131,9 +131,9 @@
     :db/cardinality :db.cardinality/one
     :db/doc "URL to resource defining public templates"}
 
-   {:db/ident :config/schematic-working
+   {:db/ident :config/schematic
     :db/valueType :db.type/ref
-    :db/cardinality :db.type/boolean
+    :db/cardinality :db.cardinality/one
     :db/doc "Ref to a **working** schematic config to use, which may or may not be standard (could reflect dev config)"}
 
    ;;{:db/ident :config/schematic }
@@ -331,24 +331,26 @@
 
 (defn link-schematic-config
   "For now schematic configs are identified with config source url and linked accordingly."
-  [dcc schematic-config]
-  (assoc dcc :config/schematic [:config/uri (schematic-config :config/uri)]))
+  [dcc config-url]
+  (assoc dcc :config/schematic [:config/uri config-url]))
 
 
-(defn only-dcc-entity
-  "Takes a DCA config map to factor out the DCC entity"
-  [config url]
+(defn transform-dcc
+  "Transform to a DCC entity from a DCA config map from a collection such as dcc-configs"
+  [config]
   (->(select-keys (config :config) [:dcc])
      (namespace-immediate-keys)
      (:dcc)
-     (link-schematic-config url)))
+     (link-schematic-config (config :config_url))))
 
 
-(defn transform-config-map
+(defn transform-schematic-config
+  "Transform to a schematic config from a DCA config map"
   [config]
-  (->(dissoc config :name)
+  (->(select-keys (config :config) [:schematic])
      (namespace-immediate-keys)
-     (:config)))
+     (:schematic)
+     (assoc :config/uri (config :config_url))))
 
 
 ;;;;;;;;;;;;
@@ -445,6 +447,8 @@
 ;; TODO translate schematic rules to attribute predicates;
 ;; Then add fun to transform graph data to install attribute preds
 
+;; BATCH LOADING
+
 (defn get-model-url [config]
   (get-in config [:config :dcc :data_model_url]))
 
@@ -461,7 +465,7 @@
 
 
 (defn prep-graphs
-  "Process a DCA config, import and prep model graphs.
+  "Process seq of DCA configs, import and prep model graphs.
   Ones unable to be retrieved are nil and removed.
   Ids are corrected to use the dcc prefix instead of 'bts:'."
   [configs]
@@ -480,6 +484,28 @@
       (catch Exception e
         (println "Failed to transact graph at index:" idx)
         (println "Error:" (.getMessage e))))))
+
+
+(defn load-dccs!
+  [conn configs]
+  (let [dccs (map transform-dcc configs)]
+    (doseq [d dccs]
+      (try
+        (d/transact! conn d)
+        (catch Exception e
+          (print-str "Failed to transact DCC:" d)
+          (println "Error:" (.getMessage e)))))))
+
+
+(defn load-schematic-configs!
+  [conn configs]
+  (let [s-configs (map transform-schematic-config configs)]
+    (doseq [sc s-configs]
+      (try
+        (d/transact! conn sc)
+        (catch Exception e
+          (print-str "Failed to transact config:" sc)
+          (println "Error:" (.getMessage e)))))))
 
 
 (defn load-graph-incrementally!
@@ -534,12 +560,13 @@
         dcc-configs (get-dcc-configs {:url url})
         graphs (prep-graphs dcc-configs)]
     (reset! conn (d/get-conn db-dir db-schema))
-    (load-graphs! @conn graphs)))
+    (load-graphs! @conn graphs)
+    (load-dccs! @conn dcc-configs)
+    (load-schematic-configs! @conn dcc-configs)))
 
 
 (defn clear-db! []
   (d/clear @conn))
-
 
 
 ;; Save fallback DCC configs
