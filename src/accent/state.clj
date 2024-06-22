@@ -4,7 +4,7 @@
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
             [clojure.java.io :as io]
-            [database.upstream :refer [get-dcc-configs]]))
+            [database.dlvn :refer [run-query conn unique-dccs]]))
 
 
 (defonce u ;; user config
@@ -102,12 +102,38 @@
     (prompt-for-api-key)))
 
 
+(defn choose-dcc-def [options]
+  (println "Please choose your DCC by entering the corresponding number:")
+  (doseq [i (range (count options))]
+    (println (str (inc i) ". " (options i))))
+  (let [selection (Integer/parseInt (read-line))]
+    (if (and (>= selection 1) (<= selection (count options)))
+      (let [dcc (options (dec selection))]
+        (swap! u assoc :dcc dcc)
+        (println dcc "it is!"))
+      (do
+        (println "Invalid selection. Please try again.")
+        (recur options)))))
+
+
+;;(defn choose-dcc-tui
+;;  [options]
+;;  (:result (b/gum :choose options)))
+;;
+
+
 (defn prompt-for-dcc
   []
-  (println "Please wait while the app attempts to refresh configs...")
-  (let [configs (get-dcc-configs)
-        options (map :name configs)]
-    (println "Please choose a DCC:" (apply str options))))
+  (println "Please wait while the app attempts to load the latest configs...")
+  (let [options (run-query @conn unique-dccs)]
+    (choose-dcc-def (mapv first options))))
+
+
+(defn current-asset-view
+  [dcc configs]
+  (->(filter #(= (:name %) dcc) configs)
+     (first)
+     (get-in [:config :dcc :synapse_asset_view])))
 
 
 (defn setup
