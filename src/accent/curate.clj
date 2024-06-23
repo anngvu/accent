@@ -25,9 +25,9 @@
 
 (defn find-manifest [files] (first (filter manifest-match? files)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Synapse API
-;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Synapse API to retrieve data for curation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn new-syn
   "Default creation of SynapseClient instance using bearer token."
@@ -103,31 +103,11 @@
 ;; OLD IMPLEMENTATION
 ;; TODO: replace with new implementation
 
-(defn get-entity
-  [id]
-  (let [url (str "https://rep-prod.prod.sagebase.org/repo/v1/entity" id)]
-    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}})))
 
-
-(defn get-scope-ids
-  "Get scope ids for an entity that has a scope"
-  [id]
-  (:scopeIds (get-entity id)))
-
-
-(defn list-children [id]
-  (->(client/post "https://repo-prod.prod.sagebase.org/repo/v1/entity/children"
-                  {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}
-                   :body (json/encode
-                          {:parentId id
-                           :nextPageToken nil
-                           :includeTypes ["file"]
-                           :sortBy "NAME"
-                           :includeTotalChildCount true
-                           :includeSumFileSizes true})})
-     (:body)
-     (json/parse-string true)
-     (:page)))
+(defn scope-files 
+  "Uses an asset-view to get a list of file ids in a scope, presumably a folder of contentType=dataset."
+  [scope asset-view]
+  "TODO")
 
 
 (defn get-filehandle [id]
@@ -138,19 +118,8 @@
         (get-in [:list 0 :id]))))
 
 
-(defn validate-scope
-  "Check whether valid scope, where 'valid' depends on the context.
-   In general a scope means a container such as a project, folder, or view,
-   but in something like a dataset curation workflow, only a folder is accepted."
-  [id type]
-  (let [scope (get-entity id)]
-    scope))
-
-
-(defn get-files [id] (list-children id))
-
-
 (defn get-data-url
+  "Get the data url for a file entity"
   [syn-id]
   (let [handle-id (get-filehandle syn-id)
         url (str "https://repo-prod.prod.sagebase.org/file/v1/file/" handle-id)]
@@ -158,8 +127,10 @@
                      :query-params {"redirect" "true" "fileAssociateType" "FileEntity" "fileAssociateId" syn-id}})))
 
 
-(defn get-manifest [folder]
-  (let [response (list-children folder)
+(defn get-manifest 
+  "Return a downloadable uri for a manifest data file associated with a scope"
+  [scope asset-view]
+  (let [response (scope-files scope asset-view)
         manifest (find-manifest response)]
     (if manifest (get-data-url (manifest :id)) "Manifest not automatically found")))
 
@@ -190,20 +161,9 @@
 
 
 (defn has-AR?
-  [id]
-  (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/accessRequirement")
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer" (@u :sat))}})
-     (:body)
-     (json/parse-string true)
-     (:totalNumberOfResults)))
-
-
-(defn fill-val
-  "Look up val for k in summary ref"
-  [k ref]
-  (if-let [val (get-in ref [k :unique-values])]
-    val
-    "TBD"))
+  "Easiest answer is an entity that has a get-restriction-level result of not OPEN."
+  [client id]
+  (not= "OPEN" (get-restriction-level client id)))
 
 
 (defn get-meta
@@ -215,8 +175,15 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Helpers + API
+;; Follow-up processing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn fill-val
+  "Look up val for k in summary ref"
+  [k ref]
+  (if-let [val (get-in ref [k :unique-values])]
+    val
+    "TBD"))
 
 
 (defn summarize-column [column-data]
@@ -283,6 +250,7 @@
 ;; UI
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; TODO: move this to a separate file
 
 (defn coerce-to-boolean [input]
   (let [true-variants #{"Y" "y" "yes" "Yes" "YES"}]
