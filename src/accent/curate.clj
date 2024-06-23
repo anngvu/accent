@@ -3,8 +3,11 @@
   (:require [accent.state :refer [u]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
-            [clojure.data.csv :as csv]))
-
+            [clojure.data.csv :as csv])
+  (:import [org.sagebionetworks.client SynapseClient SynapseClientImpl]
+           [org.sagebionetworks.client.exceptions SynapseException SynapseResultNotReadyException]
+           [org.sagebionetworks.repo.model.table Query QueryBundleRequest QueryResult QueryResultBundle Row RowSet]
+           [org.sagebionetworks.repo.model RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helpers
@@ -17,31 +20,88 @@
     (catch Exception _ false)))
 
 
-(defn summarize-column [column-data]
-  (if (every? is-numeric column-data)
-    (let [nums (map #(Double/parseDouble %) column-data)]
-      {:type "numeric" :min (apply min nums) :max (apply max nums)})
-    {:type "ordinal" :unique-values (distinct column-data)}))
-
-
-(defn summarize-manifest [response]
-  (let [manifest (:body response)
-        parsed (csv/read-csv manifest)
-        headers (first parsed)
-        columns (apply map vector (rest parsed))]
-    (zipmap headers (map summarize-column columns))))
-
-
 (defn manifest-match? [entity] (re-find (re-matcher #"synapse_storage_manifest" (entity :name))))
 
 
 (defn find-manifest [files] (first (filter manifest-match? files)))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Synapse API
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn new-syn
+  "Default creation of SynapseClient instance using bearer token."
+  [bearer-token]
+  (let [client (SynapseClientImpl.)]
+    (.setBearerAuthorizationToken client bearer-token)
+    (.setRepositoryEndpoint client "https://repo-prod.prod.sagebase.org/repo/v1")
+    (.setAuthEndpoint client "https://repo-prod.prod.sagebase.org/auth/v1")
+    (.setFileEndpoint client "https://repo-prod.prod.sagebase.org/file/v1")
+    (.setDrsEndpoint client "https://repo-prod.prod.sagebase.org/ga4gh/drs/v1")
+    client))
+
+
+(defn try-get-async-result
+  [^SynapseClient client job-token table-id]
+  (try
+    (.queryTableEntityBundleAsyncGet client job-token table-id)
+    (catch SynapseResultNotReadyException _ nil)))
+
+
+(defn get-async-result
+  [^SynapseClient client job-token table-id]
+  (loop [retry-count 0
+         backoff-ms 100] ; constant polling instead of exponential backoff
+    (when (and (try-get-async-result client job-token table-id) (< retry-count 10))
+      (do
+        (println "Async job not ready yet. Retrying...")
+        (Thread/sleep backoff-ms)
+        (recur (inc retry-count) backoff-ms)))))
+
+
+(defn query-table
+  [^SynapseClient client table-id sql]
+  (let [offset 0
+        limit 1000
+        part-mask 1
+        job-token (.queryTableEntityBundleAsyncStart client sql offset limit part-mask table-id)]
+    (loop [token job-token
+           results []]
+      (let [bundle (get-async-result client token table-id)
+            query-result (.getQueryResult bundle)
+            rowset (.getQueryResults query-result)
+            next-page-token (.getNextPageToken query-result)]
+        (if next-page-token
+          (recur next-page-token (into results rowset))
+          (into results rowset))))))
+
+
+(defn get-rows [^RowSet rowset]
+  (->> (.getRows rowset)
+       (mapv #(.getValues %))))
+
+
+(defn get-columns [^RowSet rowset]
+  (->> (.getHeaders rowset)
+       (mapv #(.getName %))))
+
+
+(defn get-column-types [^RowSet rowset]
+  (->> (.getHeaders rowset)
+       (mapv #(.getColumnType %))
+       (mapv str)))
+
+
+(defn get-restriction-level
+  "Get an ENTITY's restriction level (OPEN|RESTRICTED_BY_TERMS_OF_USE|CONTROLLED_BY_ACT)"
+  [client subject-id]
+  (let [request (doto (RestrictionInformationRequest.)
+                  (.setObjectId subject-id)
+                  (.setRestrictableObjectType RestrictableObjectType/ENTITY))]
+    (str (.getRestrictionLevel (.getRestrictionInformation client request)))))
+
+;; OLD IMPLEMENTATION
+;; TODO: replace with new implementation
 
 (defn get-entity
   [id]
@@ -155,8 +215,23 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Helpers - derive w/ API
+;; Helpers + API
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defn summarize-column [column-data]
+  (if (every? is-numeric column-data)
+    (let [nums (map #(Double/parseDouble %) column-data)]
+      {:type "numeric" :min (apply min nums) :max (apply max nums)})
+    {:type "ordinal" :unique-values (distinct column-data)}))
+
+
+(defn summarize-manifest [response]
+  (let [manifest (:body response)
+        parsed (csv/read-csv manifest)
+        headers (first parsed)
+        columns (apply map vector (rest parsed))]
+    (zipmap headers (map summarize-column columns))))
 
 
 (defn label-access [id]
