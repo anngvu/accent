@@ -167,7 +167,7 @@
 
 (defn public-release?
   "True whether entity has been released for download for signed-in Synapse users, or nil."
-  [acl]
+  [^AccessControlList acl]
   (some #(and (= (.getPrincipalId %) public-principal-id)
               (.contains (.getAccessType %) ACCESS_TYPE/DOWNLOAD))
         (.getResourceAccess acl)))
@@ -212,10 +212,10 @@
    If there is no ACT control, *then* control is determined by checking ACL for public group download.
    This why cond checks in the order below."
   [client id]
-  (let [arl (get-restriction-level client id)] 
+  (let [arl (get-restriction-level client id)]
     (cond
-      "CONTROLLED_BY_ACT" "CONTROLLED ACCESS"
-      (public? client id) "PRIVATE ACCESS"
+      (= "CONTROLLED_BY_ACT" arl) "CONTROLLED ACCESS"
+      (not (public-release? (get-acl client id))) "PRIVATE ACCESS"
       :else "PUBLIC ACCESS")))
 
 
