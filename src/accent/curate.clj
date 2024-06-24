@@ -62,45 +62,53 @@
 (defn get-async-result
   [^SynapseClient client job-token table-id]
   (loop [retry-count 0
-         backoff-ms 100] ; constant polling instead of exponential backoff
-    (when (and (try-get-async-result client job-token table-id) (< retry-count 10))
+         backoff-ms 100 ; constant polling instead of exponential backoff
+         result (try-get-async-result client job-token table-id)]
+    (if result
       (do
-        (println "Async job not ready yet. Retrying...")
-        (Thread/sleep backoff-ms)
-        (recur (inc retry-count) backoff-ms)))))
+        (println "Results retrieved.")
+        result)
+      (if (retry-count < 10)
+        (do
+          (println "Async job not ready yet. Retrying...")
+          (Thread/sleep backoff-ms)
+          (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id)))
+        (println "Results not retrieved and max attempts reached.")))))
+
+
+(defn get-rows [^RowSet rowset]
+  (->>(.getRows rowset)
+      (mapv #(.getValues %))))
+
+
+(defn get-columns [^RowSet rowset]
+  (->>(.getHeaders rowset)
+      (mapv #(.getName %))))
+
+
+(defn get-column-types [^RowSet rowset]
+  (->>(.getHeaders rowset)
+      (mapv #(.getColumnType %))
+      (mapv str)))
 
 
 (defn query-table
-  [^SynapseClient client table-id sql]
+   [^SynapseClient client table-id sql]
   (let [offset 0
         limit 1000
         part-mask 1
         job-token (.queryTableEntityBundleAsyncStart client sql offset limit part-mask table-id)]
     (loop [token job-token
-           results []]
+           rows []]
       (let [bundle (get-async-result client token table-id)
             query-result (.getQueryResult bundle)
             rowset (.getQueryResults query-result)
             next-page-token (.getNextPageToken query-result)]
         (if next-page-token
-          (recur next-page-token (into results rowset))
-          (into results rowset))))))
-
-
-(defn get-rows [^RowSet rowset]
-  (->> (.getRows rowset)
-       (mapv #(.getValues %))))
-
-
-(defn get-columns [^RowSet rowset]
-  (->> (.getHeaders rowset)
-       (mapv #(.getName %))))
-
-
-(defn get-column-types [^RowSet rowset]
-  (->> (.getHeaders rowset)
-       (mapv #(.getColumnType %))
-       (mapv str)))
+          (recur next-page-token (into rows (get-rows rowset)))
+          {:rows (into rows (get-rows rowset))
+           :cols (get-columns rowset)
+           :coltypes (get-column-types rowset)})))))
 
 
 (defn get-restriction-level
@@ -220,42 +228,26 @@
 
 
 (defn get-contributor
-  "The most parsimonious approach (with fewest assumptions) for designating contributors
+  "The most parsimonious approach for designating contributors
   is to use all unique people who uploaded files part of the dataset.
-  However, DCCs may want to derive contributors
-  each in their own special and potentially non-portable way
-  (see get-contributor-nf).
-  Ultimately, this shouldn't be expected to be initialized with perfect values and
+  This is the base approach; DCCs can also plug in a unique but non-translatable method.
+  Ultimately, shouldn't be expected to be initialized with perfect values and
   should be pointed out as one of the more high-priority items for human review."
-  [scope]
-  ["TODO"]
+  [client scope asset-view]
+
   )
 
 
-(defn get-contributor-nf
-  "NF's alternative approach for assigning contributors: use everyone named as dataLead on the project.
-  This could be an incorrect assumption when different individuals were responsible for different
-  datasets in a project (e.g. one obtained the sequencing data while another obtained the imaging data),
-  and if this is an important distinction the individuals involved (or not) might not much appreciate this method."
-  [scope]
-  ["TODO"])
+(defn derive-from-manifest-summary
+  "Derive metadata from summarized manifest metadata"
+  [m]
+  {})
 
 
-(defn source-values
-  "Set values mostly using manifest summary, though selected props have special methods."
-  [client scope props ref]
-  (into {}
-        (map (fn [[k v]]
-               [k (cond
-                    (= "title" k) "TBD"
-                    (= "description" k) "TBD"
-                    (= "accessType" k) (label-access client scope)
-                    (= "creator" k) (str (get-in @u [:profile :firstName]) (get-in @u [:profile :lastName]))
-                    (= "contributor" k) (get-contributor scope)
-                    :else (fill-val k ref)
-                    )])
-             props)))
-
+(defn derive-from-system
+  "Derive metadata from system metadata, e.g. createdBy, modifiedBy."
+  [client scope asset-view]
+  (let [sysmeta ()]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI
@@ -287,7 +279,7 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Chained
+;; Main workflows
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
