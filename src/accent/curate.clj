@@ -9,7 +9,7 @@
   (:import [org.sagebionetworks.client SynapseClient SynapseClientImpl]
            [org.sagebionetworks.client.exceptions SynapseException SynapseResultNotReadyException]
            [org.sagebionetworks.repo.model.table Query QueryBundleRequest QueryResult QueryResultBundle Row RowSet]
-           [org.sagebionetworks.repo.model AccessControlList ACCESS_TYPE RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType]
+           [org.sagebionetworks.repo.model AccessControlList ACCESS_TYPE Project RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType UserProfile]
            [org.sagebionetworks.repo.model.file FileHandleAssociation FileHandleAssociateType]
            [java.io File]))
 
@@ -36,6 +36,8 @@
 
 (defn find-manifest [files] (first (filter manifest-match? files)))
 
+(defn s-quote [s] (str "'" s "'"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Synapse API to retrieve data for curation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -60,6 +62,7 @@
 
 
 (defn get-async-result
+  "TODO: Enforce retry count."
   [^SynapseClient client job-token table-id]
   (loop [retry-count 0
          backoff-ms 100 ; constant polling instead of exponential backoff
@@ -68,12 +71,10 @@
       (do
         (println "Results retrieved.")
         result)
-      (if (retry-count < 10)
-        (do
-          (println "Async job not ready yet. Retrying...")
-          (Thread/sleep backoff-ms)
-          (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id)))
-        (println "Results not retrieved and max attempts reached.")))))
+      (do
+        (println "Async job not ready yet. Retrying...")
+        (Thread/sleep backoff-ms)
+        (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id))))))
 
 
 (defn get-rows [^RowSet rowset]
@@ -187,6 +188,15 @@
   (not= "OPEN" (get-restriction-level client id)))
 
 
+(defn get-parent-project-id
+  [client id]
+  (let [entity (.getEntityById client id)]
+    (if (instance? Project entity)
+      id
+      (recur client (.getParentId entity)))))
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Follow-up processing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -234,12 +244,24 @@
   Ultimately, shouldn't be expected to be initialized with perfect values and
   should be pointed out as one of the more high-priority items for human review."
   [client scope asset-view]
+  (let [sql (str/join " " ["SELECT distinct createdBy, modifiedBy FROM"
+                           asset-view
+                           "WHERE parentId="
+                           (s-quote scope)])]
+    (first (:rows (query-table client asset-view sql)))))
 
-  )
+
+(defn get-user-name
+  ([client]
+   (let [self (.getMyProfile client)]
+     (str (.getFirstName self) " " (.getLastName self))))
+  ([client user]
+   (let [user (.getUserProfile client user)]
+     (str (.getFirstName user) " " (.getLastName user)))))
 
 
 (defn derive-from-manifest-summary
-  "Derive metadata from summarized manifest metadata"
+  "Derive metadata from manifest metadata, which is custom by DCC + model for that data type"
   [m]
   {})
 
@@ -247,7 +269,15 @@
 (defn derive-from-system
   "Derive metadata from system metadata, e.g. createdBy, modifiedBy."
   [client scope asset-view]
-  (let [sysmeta ()]))
+  {:studyId (get-parent-project-id client scope)
+   :creator (get-user-name client)
+   :contributor (mapv #(get-user-name client %) (get-contributor client scope asset-view)) ;; alternatively, keep as user ids
+   })
+
+
+(defn merge-metadata
+  []
+  "TODO")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI
