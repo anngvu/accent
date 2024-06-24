@@ -3,11 +3,22 @@
   (:require [accent.state :refer [u]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
-            [clojure.data.csv :as csv])
+            [clojure.string :as str]
+            [clojure.data.csv :as csv]
+            )
   (:import [org.sagebionetworks.client SynapseClient SynapseClientImpl]
            [org.sagebionetworks.client.exceptions SynapseException SynapseResultNotReadyException]
            [org.sagebionetworks.repo.model.table Query QueryBundleRequest QueryResult QueryResultBundle Row RowSet]
-           [org.sagebionetworks.repo.model RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType]))
+           [org.sagebionetworks.repo.model AccessControlList ACCESS_TYPE RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType]
+           [org.sagebionetworks.repo.model.file FileHandleAssociation FileHandleAssociateType]
+           [java.io File]))
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Constants
+;; ;;;;;;;;;;;;;;;;;;;;
+
+(def public-principal-id 273949)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helpers
@@ -100,78 +111,72 @@
                   (.setRestrictableObjectType RestrictableObjectType/ENTITY))]
     (str (.getRestrictionLevel (.getRestrictionInformation client request)))))
 
-;; OLD IMPLEMENTATION
-;; TODO: replace with new implementation
+
+(defn get-acl
+  "ACL may not exist on entity directly so must first get benefactor id."
+  [client id]
+  (let [benefactor (.getId (.getEntityBenefactor client id))]
+    (.getACL client benefactor)))
 
 
 (defn scope-files 
-  "Uses an asset-view to get a list of file ids in a scope, presumably a folder of contentType=dataset."
-  [scope asset-view]
+  "Uses an asset-view to get a list of file ids in a scope (presumably a folder of contentType=dataset)."
+  [client scope asset-view]
+  (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and type='file'"])]
+    (query-table client asset-view sql)))
+
+
+(defn get-file-as-creator
+  [client id]
+  (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
+        temp-url (.getFileHandleTemporaryUrl client file-handle-id)]
+    (client/get temp-url)))
+
+
+(defn download-file
+  [client id destination-path]
+  (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
+        file-handle-assoc (doto (FileHandleAssociation.)
+               (.setAssociateObjectId id)
+               (.setAssociateObjectType FileHandleAssociateType/FileEntity)
+               (.setFileHandleId file-handle-id))]
+    (.downloadFile client file-handle-assoc (File. destination-path))))
+
+
+(defn get-stored-manifest
+  "Get data from a manifest file associated with a scope and stored in Synapse directly within the scope.
+  Alternative usage to consider:
+  If the manifest is stored in an alternate location (not directly within the sccope), use `get-data-url`.
+  If no manifest file stored at all, use annotations (assuming annotations were applied).
+  If the manifest is stored within scope, but there are ACT-controlled restrictions."
+  [client scope asset-view]
+  (let [response (scope-files client scope asset-view)
+        manifest-id (find-manifest response)]
+    (if manifest-id
+      (download-file client manifest-id (str scope ".csv"))
+      "Manifest not automatically found")))
+
+
+(defn re-manifest
+  "Remanifest from annotations with explicit input regarding the expected manifest template.
+  TODO: More advanced implementation - if the expected template schema is not provided,
+  use Component and data model lookup to generate the manifest representation."
+  []
   "TODO")
 
 
-(defn get-filehandle [id]
-  (let [url (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/filehandles")]
-    (-> (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}})
-        (:body)
-        (json/parse-string true)
-        (get-in [:list 0 :id]))))
-
-
-(defn get-data-url
-  "Get the data url for a file entity"
-  [syn-id]
-  (let [handle-id (get-filehandle syn-id)
-        url (str "https://repo-prod.prod.sagebase.org/file/v1/file/" handle-id)]
-    (client/get url {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}
-                     :query-params {"redirect" "true" "fileAssociateType" "FileEntity" "fileAssociateId" syn-id}})))
-
-
-(defn get-manifest 
-  "Return a downloadable uri for a manifest data file associated with a scope"
-  [scope asset-view]
-  (let [response (scope-files scope asset-view)
-        manifest (find-manifest response)]
-    (if manifest (get-data-url (manifest :id)) "Manifest not automatically found")))
-
-
-(defn get-benefactor [id]
-  (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/benefactor"))
-     (:body)
-     (json/parse-string true)
-     (:id)
-     ))
-
-
-(defn get-acl [id]
-  (let [id (get-benefactor id)]
-    (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/acl"))
-       (:body)
-       (json/parse-string true))))
-
-
-(defn public-download?
-  "Note: No Open Access for Synapse data, i.e. anonymous download, except with special governance,
-  so checking for PUBLIC download is default."
+(defn public-release?
+  "True whether entity has been released for download for signed-in Synapse users, or nil."
   [acl]
-  (some (fn [entry]
-        (and (= 273948 (:principalId entry))
-             (some #(= "DOWNLOAD" %) (:accessType entry))))
-        (:resourceAccess acl)))
+  (some #(and (= (.getPrincipalId %) public-principal-id)
+              (.contains (.getAccessType %) ACCESS_TYPE/DOWNLOAD))
+        (.getResourceAccess acl)))
 
 
 (defn has-AR?
-  "Easiest answer is an entity that has a get-restriction-level result of not OPEN."
+  "An entity that has a get-restriction-level result of not OPEN."
   [client id]
   (not= "OPEN" (get-restriction-level client id)))
-
-
-(defn get-meta
-  [id]
-  (->(client/get (str "https://repo-prod.prod.sagebase.org/repo/v1/entity/" id "/annotations2")
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " (@u :sat))}})
-     (:body)
-     (json/parse-string true)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -201,11 +206,17 @@
     (zipmap headers (map summarize-column columns))))
 
 
-(defn label-access [id]
-  (cond
-    (has-AR? id) "CONTROLLED ACCESS"
-    (public-download? (get-acl id)) "PUBLIC ACCESS"
-    :else "PRIVATE ACCESS"))
+(defn label-access 
+  "Essentially a mapping that interprets access level + settings to schema-specific labels.
+   Until there is AR bypass, ACT control takes utmost precedence and controls access even for contributors/admins.
+   If there is no ACT control, *then* control is determined by checking ACL for public group download.
+   This why cond checks in the order below."
+  [client id]
+  (let [arl (get-restriction-level client id)] 
+    (cond
+      "CONTROLLED_BY_ACT" "CONTROLLED ACCESS"
+      (public? client id) "PRIVATE ACCESS"
+      :else "PUBLIC ACCESS")))
 
 
 (defn get-contributor
@@ -232,13 +243,13 @@
 
 (defn source-values
   "Set values mostly using manifest summary, though selected props have special methods."
-  [scope props ref]
+  [client scope props ref]
   (into {}
         (map (fn [[k v]]
                [k (cond
                     (= "title" k) "TBD"
                     (= "description" k) "TBD"
-                    (= "accessType" k) (label-access scope)
+                    (= "accessType" k) (label-access client scope)
                     (= "creator" k) (str (get-in @u [:profile :firstName]) (get-in @u [:profile :lastName]))
                     (= "contributor" k) (get-contributor scope)
                     :else (fill-val k ref)
@@ -282,5 +293,5 @@
 
 (defn curate-dataset
   "Controlled curation flow for dataset folder->dataset entity with complete metadata"
-  [id]
+  [client id]
   "TODO")
