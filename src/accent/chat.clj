@@ -1,7 +1,7 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.curate :refer [curate-dataset]]
+            [curate.dataset :refer [curate-dataset]]
             [database.dlvn :refer [show-reference-schema ask-database]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
