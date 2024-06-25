@@ -100,14 +100,15 @@
 
 (defn prompt-for-dcc
   []
-  (println "Please wait while the app attempts to load the latest configs...")
   (let [options (run-query @conn unique-dccs)]
-    (choose-dcc-def (mapv first options))))
+  (choose-dcc-def (mapv first options))))
 
 
 (defn setup
   []
   (check-syn-creds)
   (check-openai-creds)
+  (println "Please wait while the app attempts to load latest data and configurations...")
   (init-db! {:env :test})
+  (println "Loading complete!")
   (prompt-for-dcc))
