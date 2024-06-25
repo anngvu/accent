@@ -594,4 +594,4 @@
 ;;
 (defn get-portal-dataset-props
   []
-  (mapcat identity (run-query @conn portal-dataset-props)))
+  (vec (mapcat identity (run-query @conn portal-dataset-props))))
