@@ -2,37 +2,42 @@ digraph G {
  
   rankdir=BT;
   
-
-  state[label="accent.state"]
-  
-  
   subgraph cluster_dm_rag {
       
     db[label="database.dlvn"];
     db_up[label="database.upstream"];
-    rag[label="database.rag"];
     db -> db_up
-    rag -> db
+    
       
   }
   
   subgraph cluster_ui {
+      
     vegalite[label="accent.viz.vegalite"]
      web[label="accent.ui.web"]
+     vegalite -> web
     
   }
   
- 
-  curate_dataset[label="accent.curate"];
+  subgraph cluster_curate {
+      
+    curate_dataset[label="curate.dataset"];
+    curate_tool[label="curate.tool"];    
+      
+  }
+  
+  subgraph cluster_accent {
     
-  state -> db_up
-  vegalite -> web
-  curate_dataset -> state
-  chat -> state
-  chat[label="accent.chat"]
-  chat -> curate_dataset
-  chat -> rag
-  chat -> vegalite
-
+    state[label="accent.state"]    
+    state -> db
+    state -> curate_dataset
+       
+     chat -> state
+     chat[label="accent.chat"]
+     chat -> curate_dataset
+     chat -> db
+     chat -> vegalite
+     
+  }
 
 }
