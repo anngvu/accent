@@ -15,11 +15,12 @@
            [java.io File]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
-;; Constants
+;; Defs
 ;; ;;;;;;;;;;;;;;;;;;;;
 
-(def public-principal-id 273949)
 
+(defonce syn (atom nil))
+(def public-principal-id 273949)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helpers
@@ -44,7 +45,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn new-syn
-  "Default creation of SynapseClient instance using bearer token."
+  "Create SynapseClient instance using bearer token."
   [bearer-token]
   (let [client (SynapseClientImpl.)]
     (.setBearerAuthorizationToken client bearer-token)
@@ -52,7 +53,7 @@
     (.setAuthEndpoint client "https://repo-prod.prod.sagebase.org/auth/v1")
     (.setFileEndpoint client "https://repo-prod.prod.sagebase.org/file/v1")
     (.setDrsEndpoint client "https://repo-prod.prod.sagebase.org/ga4gh/drs/v1")
-    client))
+    (reset! syn client)))
 
 
 (defn try-get-async-result
@@ -288,13 +289,6 @@
    })
 
 
-(defn derive-dataset
-  "Compile metadata using various passes/strategies and merge"
-  [client scope asset-view dataset-props]
-  (let [m-file (get-stored-manifest client scope asset-view)
-        m' (derive-from-manifest m-file dataset-props)
-        s' (derive-from-system client scope asset-view)]
-    (merge m' s')))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI
@@ -331,6 +325,12 @@
 
 
 (defn curate-dataset
-  "Controlled curation flow for dataset folder->dataset entity with complete metadata"
-  [client id]
-  "TODO")
+  "Curate dataset with several passes/strategies:
+  derive meta determinisically using custom and system meta,
+  have gen AI review and fill other meta, then validate.
+  TODO: validation"
+  [client scope asset-view dataset-props]
+  (let [m-file (get-stored-manifest client scope asset-view)
+        m' (derive-from-manifest m-file dataset-props)
+        s' (derive-from-system client scope asset-view)]
+    (merge m' s')))
