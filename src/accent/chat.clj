@@ -1,7 +1,7 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.curate :refer [curate-dataset]]
+            [curate.dataset :refer [curate-dataset]]
             [database.dlvn :refer [show-reference-schema ask-database]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
@@ -17,17 +17,17 @@
   {:type "function"
    :function
    {:name "curate_dataset"
-    :description "Use this to help user curate a dataset given the dataset id and, optionally, an id for the related manifest"
+    :description "Use this to help user curate a dataset given a scope and, optionally, a manifest."
     :parameters
     {:type "object"
      :properties
-     {:dataset_id
+     {:scope_id
       {:type "string"
-       :description "The dataset id, e.g. 'syn12345678'"}
+       :description "The scope id to use, e.g. 'syn12345678'"}
       :manifest_id
       {:type "string"
-       :description "The manifest id, e.g. 'syn12345678'. The manifest can be automatically discovered in most cases, but when manifest not in the expected location the id should be provided."}}}
-    :required ["dataset_id"] }})
+       :description "The manifest id, e.g. 'syn12345678'. While the manifest can be automatically discovered in most cases, when not in the expected location the id should be provided."}}}
+    :required ["scope_id"] }})
 
 
 (def get_database_schema_spec
@@ -122,4 +122,5 @@
 
 
 (defn -main []
-  (setup))
+  (setup)
+  (chat))

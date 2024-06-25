@@ -572,12 +572,13 @@
    [?e :sms/required true]])
 
 
-(def find-portal-dataset
+(def portal-dataset-props
   "Find portal dataset schema via exact name match (compare this against text search)"
-  '[:find ?attr ?val
+  '[:find ?label
     :where
     [?e :rdfs/label "PortalDataset"]
-    [?e ?attr ?val]])
+    [?e ?attr ?ref]
+    [?ref :sms/displayName ?label]])
 
 
 (def get-nf-schematic-config
@@ -588,6 +589,9 @@
     [?config ?ref ?module]
     [?module ?param ?val]])
 
-;; RULES
-;; TODO translate schematic rules to attribute predicates;
-;; Then add fun to transform graph data to install attribute preds
+
+;; HELPERS
+;;
+(defn get-portal-dataset-props
+  []
+  (vec (mapcat identity (run-query @conn portal-dataset-props))))

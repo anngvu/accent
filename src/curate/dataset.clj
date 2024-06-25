@@ -1,24 +1,26 @@
-(ns accent.curate
+(ns curate.dataset
   (:gen-class)
   (:require [accent.state :refer [u]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.data.csv :as csv]
+            [clojure.java.io :as io]
             )
   (:import [org.sagebionetworks.client SynapseClient SynapseClientImpl]
            [org.sagebionetworks.client.exceptions SynapseException SynapseResultNotReadyException]
            [org.sagebionetworks.repo.model.table Query QueryBundleRequest QueryResult QueryResultBundle Row RowSet]
-           [org.sagebionetworks.repo.model AccessControlList ACCESS_TYPE RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType]
+           [org.sagebionetworks.repo.model AccessControlList ACCESS_TYPE Project RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType UserProfile]
            [org.sagebionetworks.repo.model.file FileHandleAssociation FileHandleAssociateType]
            [java.io File]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
-;; Constants
+;; Defs
 ;; ;;;;;;;;;;;;;;;;;;;;
 
-(def public-principal-id 273949)
 
+(defonce syn (atom nil))
+(def public-principal-id 273949)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helpers
@@ -36,12 +38,14 @@
 
 (defn find-manifest [files] (first (filter manifest-match? files)))
 
+(defn s-quote [s] (str "'" s "'"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Synapse API to retrieve data for curation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn new-syn
-  "Default creation of SynapseClient instance using bearer token."
+  "Create SynapseClient instance using bearer token."
   [bearer-token]
   (let [client (SynapseClientImpl.)]
     (.setBearerAuthorizationToken client bearer-token)
@@ -49,7 +53,7 @@
     (.setAuthEndpoint client "https://repo-prod.prod.sagebase.org/auth/v1")
     (.setFileEndpoint client "https://repo-prod.prod.sagebase.org/file/v1")
     (.setDrsEndpoint client "https://repo-prod.prod.sagebase.org/ga4gh/drs/v1")
-    client))
+    (reset! syn client)))
 
 
 (defn try-get-async-result
@@ -60,47 +64,54 @@
 
 
 (defn get-async-result
+  "TODO: Enforce retry count."
   [^SynapseClient client job-token table-id]
   (loop [retry-count 0
-         backoff-ms 100] ; constant polling instead of exponential backoff
-    (when (and (try-get-async-result client job-token table-id) (< retry-count 10))
+         backoff-ms 100 ; constant polling instead of exponential backoff
+         result (try-get-async-result client job-token table-id)]
+    (if result
+      (do
+        (println "Results retrieved.")
+        result)
       (do
         (println "Async job not ready yet. Retrying...")
         (Thread/sleep backoff-ms)
-        (recur (inc retry-count) backoff-ms)))))
+        (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id))))))
+
+
+(defn get-rows [^RowSet rowset]
+  (->>(.getRows rowset)
+      (mapv #(.getValues %))))
+
+
+(defn get-columns [^RowSet rowset]
+  (->>(.getHeaders rowset)
+      (mapv #(.getName %))))
+
+
+(defn get-column-types [^RowSet rowset]
+  (->>(.getHeaders rowset)
+      (mapv #(.getColumnType %))
+      (mapv str)))
 
 
 (defn query-table
-  [^SynapseClient client table-id sql]
+   [^SynapseClient client table-id sql]
   (let [offset 0
         limit 1000
         part-mask 1
         job-token (.queryTableEntityBundleAsyncStart client sql offset limit part-mask table-id)]
     (loop [token job-token
-           results []]
+           rows []]
       (let [bundle (get-async-result client token table-id)
             query-result (.getQueryResult bundle)
             rowset (.getQueryResults query-result)
             next-page-token (.getNextPageToken query-result)]
         (if next-page-token
-          (recur next-page-token (into results rowset))
-          (into results rowset))))))
-
-
-(defn get-rows [^RowSet rowset]
-  (->> (.getRows rowset)
-       (mapv #(.getValues %))))
-
-
-(defn get-columns [^RowSet rowset]
-  (->> (.getHeaders rowset)
-       (mapv #(.getName %))))
-
-
-(defn get-column-types [^RowSet rowset]
-  (->> (.getHeaders rowset)
-       (mapv #(.getColumnType %))
-       (mapv str)))
+          (recur next-page-token (into rows (get-rows rowset)))
+          {:rows (into rows (get-rows rowset))
+           :cols (get-columns rowset)
+           :coltypes (get-column-types rowset)})))))
 
 
 (defn get-restriction-level
@@ -140,7 +151,8 @@
                (.setAssociateObjectId id)
                (.setAssociateObjectType FileHandleAssociateType/FileEntity)
                (.setFileHandleId file-handle-id))]
-    (.downloadFile client file-handle-assoc (File. destination-path))))
+    (.downloadFile client file-handle-assoc (File. destination-path))
+    destination-path))
 
 
 (defn get-stored-manifest
@@ -179,9 +191,25 @@
   (not= "OPEN" (get-restriction-level client id)))
 
 
+(defn get-parent-project-id
+  [client id]
+  (let [entity (.getEntityById client id)]
+    (if (instance? Project entity)
+      id
+      (recur client (.getParentId entity)))))
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Follow-up processing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defn read-csv-file [file-path]
+  (with-open [reader (io/reader file-path)]
+    (doall
+     (csv/read-csv reader))))
+
 
 (defn fill-val
   "Look up val for k in summary ref"
@@ -198,11 +226,12 @@
     {:type "ordinal" :unique-values (distinct column-data)}))
 
 
-(defn summarize-manifest [response]
-  (let [manifest (:body response)
-        parsed (csv/read-csv manifest)
-        headers (first parsed)
-        columns (apply map vector (rest parsed))]
+(defn summarize-manifest
+  "Read a csv manifest, analyze and summarize it column-by-column."
+  [file-path]
+  (let [manf (read-csv-file file-path)
+        headers (first manf)
+        columns (apply map vector (rest manf))]
     (zipmap headers (map summarize-column columns))))
 
 
@@ -220,41 +249,45 @@
 
 
 (defn get-contributor
-  "The most parsimonious approach (with fewest assumptions) for designating contributors
+  "The most parsimonious approach for designating contributors
   is to use all unique people who uploaded files part of the dataset.
-  However, DCCs may want to derive contributors
-  each in their own special and potentially non-portable way
-  (see get-contributor-nf).
-  Ultimately, this shouldn't be expected to be initialized with perfect values and
+  This is the base approach; DCCs can also plug in a unique but non-translatable method.
+  Ultimately, shouldn't be expected to be initialized with perfect values and
   should be pointed out as one of the more high-priority items for human review."
-  [scope]
-  ["TODO"]
-  )
+  [client scope asset-view]
+  (let [sql (str/join " " ["SELECT distinct createdBy, modifiedBy FROM"
+                           asset-view
+                           "WHERE parentId="
+                           (s-quote scope)])]
+    (first (:rows (query-table client asset-view sql)))))
 
 
-(defn get-contributor-nf
-  "NF's alternative approach for assigning contributors: use everyone named as dataLead on the project.
-  This could be an incorrect assumption when different individuals were responsible for different
-  datasets in a project (e.g. one obtained the sequencing data while another obtained the imaging data),
-  and if this is an important distinction the individuals involved (or not) might not much appreciate this method."
-  [scope]
-  ["TODO"])
+(defn get-user-name
+  ([client]
+   (let [self (.getMyProfile client)]
+     (str (.getFirstName self) " " (.getLastName self))))
+  ([client user]
+   (let [user (.getUserProfile client user)]
+     (str (.getFirstName user) " " (.getLastName user)))))
 
 
-(defn source-values
-  "Set values mostly using manifest summary, though selected props have special methods."
-  [client scope props ref]
-  (into {}
-        (map (fn [[k v]]
-               [k (cond
-                    (= "title" k) "TBD"
-                    (= "description" k) "TBD"
-                    (= "accessType" k) (label-access client scope)
-                    (= "creator" k) (str (get-in @u [:profile :firstName]) (get-in @u [:profile :lastName]))
-                    (= "contributor" k) (get-contributor scope)
-                    :else (fill-val k ref)
-                    )])
-             props)))
+(defn derive-from-manifest
+  "Derive metadata from manifest metadata"
+  [file-path dataset-props]
+  (->(summarize-manifest file-path)
+     (select-keys dataset-props)
+     (update-vals :unique-values)))
+
+
+(defn derive-from-system
+  "Derive metadata from system metadata, e.g. createdBy, modifiedBy."
+  [client scope asset-view]
+  {:studyId (get-parent-project-id client scope)
+   :creator (get-user-name client)
+   :contributor (mapv #(get-user-name client %) (get-contributor client scope asset-view)) ;; alternatively, keep as user ids
+   :accessType (label-access client scope)
+   })
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -287,11 +320,17 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Chained
+;; Main workflows
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn curate-dataset
-  "Controlled curation flow for dataset folder->dataset entity with complete metadata"
-  [client id]
-  "TODO")
+  "Curate dataset with several passes/strategies:
+  derive meta determinisically using custom and system meta,
+  have gen AI review and fill other meta, then validate.
+  TODO: validation"
+  [client scope asset-view dataset-props]
+  (let [m-file (get-stored-manifest client scope asset-view)
+        m' (derive-from-manifest m-file dataset-props)
+        s' (derive-from-system client scope asset-view)]
+    (merge m' s')))
