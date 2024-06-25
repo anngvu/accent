@@ -5,6 +5,7 @@
             [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.data.csv :as csv]
+            [clojure.java.io :as io]
             )
   (:import [org.sagebionetworks.client SynapseClient SynapseClientImpl]
            [org.sagebionetworks.client.exceptions SynapseException SynapseResultNotReadyException]
@@ -149,7 +150,8 @@
                (.setAssociateObjectId id)
                (.setAssociateObjectType FileHandleAssociateType/FileEntity)
                (.setFileHandleId file-handle-id))]
-    (.downloadFile client file-handle-assoc (File. destination-path))))
+    (.downloadFile client file-handle-assoc (File. destination-path))
+    destination-path))
 
 
 (defn get-stored-manifest
@@ -201,6 +203,13 @@
 ;; Follow-up processing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+(defn read-csv-file [file-path]
+  (with-open [reader (io/reader file-path)]
+    (doall
+     (csv/read-csv reader))))
+
+
 (defn fill-val
   "Look up val for k in summary ref"
   [k ref]
@@ -216,11 +225,12 @@
     {:type "ordinal" :unique-values (distinct column-data)}))
 
 
-(defn summarize-manifest [response]
-  (let [manifest (:body response)
-        parsed (csv/read-csv manifest)
-        headers (first parsed)
-        columns (apply map vector (rest parsed))]
+(defn summarize-manifest
+  "Read a csv manifest, analyze and summarize it column-by-column."
+  [file-path]
+  (let [manf (read-csv-file file-path)
+        headers (first manf)
+        columns (apply map vector (rest manf))]
     (zipmap headers (map summarize-column columns))))
 
 
@@ -260,10 +270,12 @@
      (str (.getFirstName user) " " (.getLastName user)))))
 
 
-(defn derive-from-manifest-summary
-  "Derive metadata from manifest metadata, which is custom by DCC + model for that data type"
-  [m]
-  {})
+(defn derive-from-manifest
+  "Derive metadata from manifest metadata"
+  [file-path dataset-props]
+  (->(summarize-manifest file-path)
+     (select-keys dataset-props)
+     (update-vals :unique-values)))
 
 
 (defn derive-from-system
@@ -272,12 +284,17 @@
   {:studyId (get-parent-project-id client scope)
    :creator (get-user-name client)
    :contributor (mapv #(get-user-name client %) (get-contributor client scope asset-view)) ;; alternatively, keep as user ids
+   :accessType (label-access client scope)
    })
 
 
-(defn merge-metadata
-  []
-  "TODO")
+(defn derive-dataset
+  "Compile metadata using various passes/strategies and merge"
+  [client scope asset-view dataset-props]
+  (let [m-file (get-stored-manifest client scope asset-view)
+        m' (derive-from-manifest m-file dataset-props)
+        s' (derive-from-system client scope asset-view)]
+    (merge m' s')))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI
