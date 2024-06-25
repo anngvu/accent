@@ -1,7 +1,6 @@
 (ns curate.dataset
   (:gen-class)
-  (:require [accent.state :refer [u]]
-            [babashka.http-client :as client]
+  (:require [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.data.csv :as csv]
