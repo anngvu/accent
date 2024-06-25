@@ -1,4 +1,4 @@
-(ns accent.curate
+(ns curate.dataset
   (:gen-class)
   (:require [accent.state :refer [u]]
             [babashka.http-client :as client]

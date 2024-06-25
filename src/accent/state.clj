@@ -4,7 +4,8 @@
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
             [clojure.java.io :as io]
-            [database.dlvn :refer [init-db! run-query conn unique-dccs]]))
+            [database.dlvn :refer [init-db! run-query conn unique-dccs]]
+            [curate.dataset :refer [new-syn]]))
 
 
 (defonce u ;; user config
@@ -17,38 +18,13 @@
     :ui :default}))
 
 
-(defn get-user-profile
-  "Get user profile from Synapse using Synapse auth token"
-  [sat]
-  (->(client/get "https://repo-prod.prod.sagebase.org/repo/v1/userProfile"
-                 {:headers {:Content-type "application/json" :Authorization (str "Bearer " sat)}})
-     (:body)
-     (json/parse-string true)))
-
-
-(defn valid-user-profile?
-  "TODO: Real rigorous checks of the user pofile."
-  [profile]
-  true)
-
-
-(defn set-user!
-  [sat]
-  (try
-    (let [profile (get-user-profile (@u sat))]
-      ;; validate against expected user profile data
-      (if (valid-user-profile? profile)
-        (do
-          ;; (swap! u assoc :profile profile)
-          ;; (swap! u assoc :sat token)
-          (println "Hi!")
-          true)
-        (do
-          (println "Login failed: Invalid user data.")
-          nil)))
-    (catch Exception e
-      (println "Login failed:" (.getMessage e))
-      nil)))
+(defn set-syn!
+  "Use for switching between Synapse accounts."
+  [synapse-auth-token]
+  (do
+    (new-syn synapse-auth-token)
+    (swap! u assoc :sat synapse-auth-token)
+    true))
 
 
 (defn set-api-key!
@@ -76,8 +52,8 @@
   "Prompt for Synapse authentication token."
   []
   (let [sat (token-input-def "Synapse auth token: ")]
-    (if (set-user! sat)
-      (println "Hi" (get-in @u [:profile :firstName])))))
+    (if (set-syn! sat)
+      (println "Synapse set."))))
 
 
 (defn prompt-for-api-key
