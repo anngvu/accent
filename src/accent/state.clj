@@ -105,10 +105,15 @@
 
 
 (defn setup
-  []
-  (check-syn-creds)
+  [full?]
   (check-openai-creds)
-  (println "Please wait while the app attempts to load latest data and configurations...")
-  (init-db! {:env :test})
-  (println "Loading complete!")
-  (prompt-for-dcc))
+  (when full?
+    (check-syn-creds)
+    (try
+      (println "Please wait while the app attempts to load latest data and configurations...")
+      (init-db! {:env :test})
+      (println "Loading complete!")
+      (prompt-for-dcc)
+      (catch Exception e
+        (println "An error occurred during setup:" (.getMessage e))
+        (System/exit 1)))))
