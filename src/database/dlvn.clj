@@ -226,9 +226,13 @@
   (into {} (mapcat to-dlvn-schema [schematic-model-schema dcc-schema config-schema schematic-config-schema])))
 
 (defn show-reference-schema
-  "Print a schema reference. NOTE Intentionally limited to showing selected schema at a time to avoid overload."
-   []
-   (str schematic-model-schema))
+  "Print a schema reference. NOTE Intentionally limited to showing select schema to avoid overload."
+   [schema-name]
+  (case schema-name
+    "data-model" (str schematic-model-schema)
+    "schematic-config" (str schematic-config-schema)
+    "dcc" (str dcc-schema)
+    "No matching schema found."))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -449,10 +453,11 @@
 
 
 (defn ask-database
-  [conn query-string]
-  (let [q (read-string query-string)
-        answer (run-query conn q)]
-    (println-str answer)))
+  "Tool version of run-query where conn is not explicitly provided,
+  query is a string instead of data structure."
+  [query-string]
+  (let [q (read-string query-string)]
+    (run-query @conn q)))
 
 
 (defn write-json-file [data file-path]
