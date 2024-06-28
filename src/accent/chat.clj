@@ -270,15 +270,26 @@
   Add the tool result, whether good or error, so AI can handle it."
   [tool-calls]
   (let [tool-call (first (tool-calls))
-        result (tool-time tool-call)]
+        result (tool-time tool-call)
+        msg {:tool_call_id (tool-call :id)
+             :role "tool"
+             :name (get-in tool-call [:function :name])
+             :content (result :result)}]
     ; if error key present, content is an error message
     ; and AI will likely retry with another tool call
-    (prompt-ai
-     {:tool_call_id (tool-call :id)
-      :role "tool"
-      :name (get-in tool-call [:function :name])
-      :content (result :result)}
-     (result :next-tool-call))))
+    (swap! messages conj msg)
+    (prompt-ai msg (result :next-tool-call))))
+
+
+(defn parse-response
+  [resp]
+  (let [resp       (json/parse-string (:body resp) true)
+        finish-reason (get-in resp [:choices 0 :finish_reason])]
+    (case finish-reason
+      "length" (assoc resp :final true)
+      "tool_calls" (tool-time (get-in resp [:choices 0 :message :tool_calls]))
+      "content_filter" (add-ai-reply resp) ;; TODO: handle more specifically
+      "stop" (add-ai-reply resp))))
 
 
 (defn prompt-shots
@@ -292,7 +303,7 @@
     (loop [shots 0]
       (let [result (apply prompt-fn args)]
         (if (or (result :error) (= shots max-shots))
-          result
+          (parse-response result)
           (recur (inc shots)))))))
 
 
@@ -304,16 +315,6 @@
 ;;;;;;;;;;;;;;;;;
 ;; CHAT - MAIN
 ;;;;;;;;;;;;;;;;;
-
-(defn parse-response
-  [resp]
-  (let [resp       (json/parse-string (:body resp) true)
-        finish-reason (get-in resp [:choices 0 :finish_reason])]
-    (case finish-reason
-      "length" (assoc resp :final true)
-      "tool_calls" (tool-time (get-in resp [:choices 0 :message :tool_calls]))
-      "content_filter" (add-ai-reply resp) ;; TODO: handle more specifically
-      "stop" (add-ai-reply resp))))
 
 
 (defn chat
