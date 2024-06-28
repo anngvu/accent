@@ -116,12 +116,14 @@
   "Prompt ai with possible forced tool choice."
   [message & [tool-choice]]
   (swap! messages conj message)
-  (send
+  (->
    (cond->
       {:model   (@u :model)
        :messages @messages
        :tools tools}
-    tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))))
+     tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
+   (send)
+   ))
 
 
 (defn as-user-message
@@ -229,6 +231,16 @@
     (ask-database (args :query)))
 
 
+(defn next-tool-call
+  "Applies logic for chaining certain tool calls when needed.
+  Currently, enhance_curation should be forced after curate_dataset.
+  Input can be result from `tool-time`. TODO: make more elegant."
+  [tc-result]
+  (if (and (not (tc-result :error)) (= "curate_dataset" (tc-result :tool)))
+    (assoc tc-result :next-tool-call "enhance_curation")
+    tc-result))
+
+
 (defn tool-time
   "Expects a single tool entity for tool time.
   Internal call done by matching to the tool wrapper,
@@ -259,19 +271,22 @@
   [tool-calls]
   (let [tool-call (first (tool-calls))
         result (tool-time tool-call)]
+    ; if error key present, content is an error message
+    ; and AI will likely retry with another tool call
     (prompt-ai
      {:tool_call_id (tool-call :id)
       :role "tool"
       :name (get-in tool-call [:function :name])
-      :content (result :result)})))
+      :content (result :result)}
+     (result :next-tool-call))))
 
 
 (defn prompt-shots
-  "Create prompting environment allowing some number of shots to get a good result.
-  Could use to implement contexts such as 'one-shot' or 'few-shot',
-  but also the success for different prompts/asks can vary,
+  "Create prompting environment allowing some number of shots to get a good result,
+  e.g. contexts known as 'one-shot' or 'few-shot'.
+  Allows adapting prompt environment given that success for different prompts can vary,
   e.g. prompts for working database query can be harder to get right
-  than for simple structured data extraction."
+  than for simple structured data extraction. prompt-fn should return map with :result."
   [prompt-fn max-shots]
   (fn [& args]
     (loop [shots 0]
@@ -281,9 +296,9 @@
           (recur (inc shots)))))))
 
 
-(def one-shot-tool-time
+(def one-shot-tool-call
   "In practice, number of shots given should vary by tool."
-  (prompt-shots tool-time 1))
+  (prompt-shots add-tool-result 1))
 
 
 ;;;;;;;;;;;;;;;;;
@@ -299,6 +314,7 @@
       "tool_calls" (tool-time (get-in resp [:choices 0 :message :tool_calls]))
       "content_filter" (add-ai-reply resp) ;; TODO: handle more specifically
       "stop" (add-ai-reply resp))))
+
 
 (defn chat
   []
