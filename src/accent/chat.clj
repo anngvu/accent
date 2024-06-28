@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [curate.dataset :refer [syn curate-dataset]]
-            [database.dlvn :refer [show-reference-schema ask-database]]
+            [database.dlvn :refer [show-reference-schema ask-database get-portal-dataset-props]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
@@ -15,7 +15,13 @@
 
 (defonce messages (atom init-prompt))
 
+(defonce products (atom nil))
+
 (defonce log (atom []))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; TOOl DEFINITIONS
+;;;;;;;;;;;;;;;;;;;;;
 
 (def curate_dataset_spec
   {:type "function"
@@ -91,141 +97,57 @@
 (def tools [curate_dataset_spec get_database_schema_spec ask_database_spec enhance_curation_spec])
 
 
-(defn curate-dataset-wrapper
-  "Call with additional args in state + handle errors"
-  [args]
-  (let [scope (args :scope_id)
-        asset-view (@u :asset_view)
-        dataset-props ()]
-    (try
-      (curate-dataset @syn scope asset-view dataset-props)
-      (catch Exception e
-        (println "Database")))))
-
-
-(defn ask-database-wrapper
-  "Call with handle errors + reprompting as needed"
-  [args]
-  (try
-    (ask-database (args :query))
-    (catch Exception e
-      (println (str "Failed with " (.getMessage e))))))
-
+;;;;;;;;;;;;;;;;;;;;
+;; BASIC CHAT OPS
+;;;;;;;;;;;;;;;;;;;;
 
 (defn reset-chat! []
   (reset! messages init-prompt))
 
-(defn message-ai
-  "Send  message as user"
-  [prompt]
-    (swap! messages conj {:role    "user"
-                          :content prompt})
-    (client/post "https://api.openai.com/v1/chat/completions"
+
+(defn send [body]
+  (client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
                             "Authorization" (str "Bearer " (@u :oak))}
-                  :body    (json/generate-string
-                              {:model   (@u :model)
-                               :messages @messages
-                               :tools tools})}))
+                   :body    (json/generate-string body)}))
 
 
-(defn reply-required-next [msg]
-    (swap! messages conj msg)
-    (client/post "https://api.openai.com/v1/chat/completions"
-                 {:headers {"Content-Type" "application/json"
-                            "Authorization" (str "Bearer " (@u :oak))}
-                  :body    (json/generate-string
-                              {:model   (@u :model)
-                               :messages @messages
-                               :tools tools
-                               :tool_choice {:type "function" :function {:name "enhance_curation"}}
-                })}))
+(defn prompt-ai
+  "Prompt ai with possible forced tool choice."
+  [message & [tool-choice]]
+  (swap! messages conj message)
+  (send
+   (cond->
+      {:model   (@u :model)
+       :messages @messages
+       :tools tools}
+    tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))))
 
 
-(defn tool-time
-  "Tool time! Expects a single tool entity."
-  [tool-call]
-  (let [call-fn (get-in tool-call [:function :name])
-        args  (json/parse-string (get-in tool-call [:function :arguments]) true)]
-
-    ;; TODO: validate call-fn and args here
-    (try
-      (case call-fn
-        "curate_dataset" (curate-dataset-wrapper args)
-        "get_database_schema" (show-reference-schema (args :schema_name))
-        "ask_database" (ask-database (args :query)))
-      (catch Exception e
-        (let [error-msg (.getMessage e)
-              re-prompt (str "The tool call for function " call-fn
-                             " failed with error: " error-msg
-                             ". Please provide a corrected tool call.")]
-          (message-ai re-prompt)
-      )))))
+(defn as-user-message
+  "As default user message"
+  [content]
+  {:role "user"
+   :content content})
 
 
-(defn get-message
- "Get message from raw response JSON from chat completion."
-  [response]
-  (->(json/parse-string (:body response) true)
-     (get-in [:choices 0 :message])))
-
-
-(defn get-role
-  [response]
-  (->(json/parse-string (:body response) true)
-     (get-in [:choices 0 :message :role])))
-
-
-(defn add-ai-response
-  "Add AI response to message history"
+(defn add-ai-reply
+  "Add conversational AI response message to internal message data +
+  return content element for UI. For tool calls, content will usually be null."
   [response]
   (let [msg (get-in response [:choices 0 :message])]
-    (swap! messages conj msg)))
-
-
-(defn tool-call-mock-response
-  [resp content]
-  (let [resp (json/parse-string (:body resp) true)
-        _ (add-ai-response resp)
-        tool-call (first (get-in resp [:choices 0 :message :tool_calls]))]
-    {:tool_call_id (tool-call :id)
-     :role "tool"
-     :name (get-in tool-call [:function :name])
-     :content (str "Here are features of the successfully curated entity: " content)}))
-
-
-(defn tool-call-mock [response]
-  (let [content (str "IndividualIDs: 50 unique;"
-                     "Genomic Coverage: Whole-genome sequencing (WGS);"
-                     "Read Depth: 30x;"
-                     "Sex: 30 Male/20 Female;"
-                     "TumorType: Cutaneous Neurofibroma")
-        reply (tool-call-mock-response response content)]
-    (reply-required-next reply)))
-
-
-(defn add-tool-content
-  "Tool calls interception (first tool only, does not handle parallel tool calls),
-  then add tool content to messages."
-  [tool-calls]
-  (let [tool-call (first (tool-calls))
-        fn-result (tool-time tool-call)]
-  {:tool_call_id (tool-call :id)
-   :role "tool"
-   :name (get-in tool-call [:function :name])
-   :content fn-result
-   }))
+    (swap! messages conj msg)
+    (msg :content)))
 
 
 (def oops
   "Various responses to communicate that the chat is being terminated."
-  ["we're over-context, operations pause suddenly"
-   "we're over-context, out of prompting space"
-   "we're over-context, out of prompt suggestions"
+  ["we're over-limit, operations pause suddenly"
+   "we're out of prompting space"
    "we're out of prompting scope"
+   "we've encountered operational obstacles preventing success"
    "we're out of possible solutions for now"
-   "obstacles oppose prompt service"
-   "operational obstacles prevent success"
+   "certain obstacles oppose prompt service"
    "onset of prompting stress"])
 
 
@@ -243,54 +165,152 @@
 
 (defn save-chat-offer
   []
-  (print (str "If you would like to save the chat data before the app exits, "
+  (print (str "If you would like to save the chat data before the program exits, "
                 "please type 'Yes' exactly."))
   (println)
   (flush)
   (when (= "Yes" (read-line))
     (let [filename (str "accent_" ".json")]
-      ;;(save-chat "chat.json")
+      (save-chat "chat.json")
       (flush)
       (println "Saved your chat as" filename "!")))
-  (print "Please exit and restart the app to start a new chat."))
+  (print "Please exit now. Program must be restarted to start a new chat."))
+
+
+(defn print-reply [role content]
+  (println)
+  (print role "_" content)
+  (println))
 
 
 (defn context-stop
-  "Handle when context limit reached.
-  Let user know, currently only allow option to save chat and exit app.
+  "When context limit reached let user know and present limited option to save chat.
   TODO: ability to start new chat and carry over a summary of last chat,
   requires proactive interception with a reasonable buffer before context limit reached."
   [last-response]
+  (print-reply "accent" (add-ai-reply last-response))
+  (println)
+  (println "-- NOTIFICATION --")
   (println
    (str "Hey, it looks like " (rand-nth oops)
-        ". Context tokens limit reached with " (total-tokens last-response) " tokens."))
+        ". Context tokens limit has been reached with " (total-tokens last-response) " tokens."))
   (save-chat-offer))
 
 
-(defn parse-response [resp]
+;;;;;;;;;;;;;;;;;;;;;;;
+;; TOOL CALL OPS
+;; ;;;;;;;;;;;;;;;;;;;;
+
+(defn wrap-curate-dataset
+  "Call with additional args in state, store structured result in data products,
+  generate a string representation to pass back to chat messages."
+  [args]
+  (let [scope (args :scope_id)
+        asset-view (@u :asset_view)
+        dataset-props (get-portal-dataset-props)]
+    (try
+      (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
+      ;; (swap! products assoc :supplement "") ;; relevant text excerpts to provide more context
+      (str (@products :dataset) "\n") ;; (@products :supplement))
+      )))
+
+
+(defn wrap-enhance-curation
+  "Merge AI-generated data with internal data for curated product,
+  generate a string summary response.
+  TODO: flexible logic instead of hard-coding to dataset."
+  [args]
+  (swap! products update-in [:dataset] merge args)
+  "Entity has been updated.")
+
+
+(defn wrap-ask-database
+  [args]
+    (ask-database (args :query)))
+
+
+(defn tool-time
+  "Expects a single tool entity for tool time.
+  Internal call done by matching to the tool wrapper,
+  which should stores any applicable result data in state
+  and returns a string representation of result."
+  [tool-call]
+  (let [call-fn (get-in tool-call [:function :name])
+        args  (json/parse-string (get-in tool-call [:function :arguments]) true)]
+    ;; TODO: validate function calls before calling
+    (try
+      (let [result (case call-fn
+                     "curate_dataset" (wrap-curate-dataset args)
+                     "enhance_curation" (wrap-enhance-curation args)
+                     "get_database_schema" (show-reference-schema (args :schema_name))
+                     "ask_database" (wrap-ask-database (args :query))
+                     (throw (ex-info "Invalid tool function" {:tool call-fn})))]
+        {:tool call-fn
+         :result result})
+      (catch Exception e
+        {:tool call-fn
+         :result (.getMessage e)
+         :error true}))))
+
+
+(defn add-tool-result
+  "Intercept tool calls (selecting first of incoming tool calls, ignores parallel calls).
+  Add the tool result, whether good or error, so AI can handle it."
+  [tool-calls]
+  (let [tool-call (first (tool-calls))
+        result (tool-time tool-call)]
+    (prompt-ai
+     {:tool_call_id (tool-call :id)
+      :role "tool"
+      :name (get-in tool-call [:function :name])
+      :content (result :result)})))
+
+
+(defn prompt-shots
+  "Create prompting environment allowing some number of shots to get a good result.
+  Could use to implement contexts such as 'one-shot' or 'few-shot',
+  but also the success for different prompts/asks can vary,
+  e.g. prompts for working database query can be harder to get right
+  than for simple structured data extraction."
+  [prompt-fn max-shots]
+  (fn [& args]
+    (loop [shots 0]
+      (let [result (apply prompt-fn args)]
+        (if (or (result :error) (= shots max-shots))
+          result
+          (recur (inc shots)))))))
+
+
+(def one-shot-tool-time
+  "In practice, number of shots given should vary by tool."
+  (prompt-shots tool-time 1))
+
+
+;;;;;;;;;;;;;;;;;
+;; CHAT - MAIN
+;;;;;;;;;;;;;;;;;
+
+(defn parse-response
+  [resp]
   (let [resp       (json/parse-string (:body resp) true)
         finish-reason (get-in resp [:choices 0 :finish_reason])]
     (case finish-reason
       "length" (assoc resp :final true)
       "tool_calls" (tool-time (get-in resp [:choices 0 :message :tool_calls]))
-      "content-filter" (add-ai-response resp) ;; TODO: handle more specifically
-      "stop" (add-ai-response resp))
-    ))
-
+      "content_filter" (add-ai-reply resp) ;; TODO: handle more specifically
+      "stop" (add-ai-reply resp))))
 
 (defn chat
   []
   (print "New message:")
   (flush)
-  (loop [prompt (read-line)]
-    (let [resp (parse-response (message-ai prompt))]
+  (loop [prompt (as-user-message (read-line))]
+    (let [resp (parse-response (prompt-ai prompt))]
       (if (:final resp)
         (context-stop resp)
         (do
-          (println)
-          (print resp)
-          (println)
-          (print " ---- next message:")
+          (print-reply "accent" resp)
+          (print "user _ ")
           (flush)
           (recur (read-line)))))))
 
