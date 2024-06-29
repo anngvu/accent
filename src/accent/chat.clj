@@ -333,5 +333,5 @@
 
 
 (defn -main []
-  (setup false)
+  (setup)
   (chat))
