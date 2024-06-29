@@ -3,6 +3,7 @@
   (:require [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [database.dlvn :refer [init-db! run-query conn unique-dccs]]
             [curate.dataset :refer [new-syn]]))
@@ -66,7 +67,7 @@
 
 (defn check-syn-creds []
   (when-not (@u :sat)
-     (println "Synapse credentials not detected. Please login.")
+     (println "Synapse credentials not detected. Please provide.")
      (prompt-for-sat)))
 
 
@@ -95,7 +96,6 @@
 ;;(defn choose-dcc-tui
 ;;  [options]
 ;;  (:result (b/gum :choose options)))
-;;
 
 
 (defn prompt-for-dcc
@@ -104,16 +104,36 @@
   (choose-dcc-def (mapv first options))))
 
 
+(def fallback-config
+  "Default configuration"
+  {:tools true
+   :db-env :test})
+
+
+(defn read-config
+  "Configuration for setup"
+  [filename]
+  (try
+    (with-open [r (io/reader filename)]
+      (edn/read r))
+    (catch Exception e
+      (println "Config file not found or invalid, using fallback config.")
+      fallback-config)))
+
+
 (defn setup
-  [full?]
-  (check-openai-creds)
-  (when full?
-    (check-syn-creds)
-    (try
-      (println "Please wait while the app attempts to load latest data and configurations...")
-      (init-db! {:env :test})
-      (println "Loading complete!")
-      (prompt-for-dcc)
-      (catch Exception e
-        (println "An error occurred during setup:" (.getMessage e))
-        (System/exit 1)))))
+  []
+  (let [config (read-config "config.edn")
+        tools-enabled (:tools config)
+        db-env (:db-env config)]
+    (check-openai-creds)
+    (when tools-enabled
+      (check-syn-creds)
+      (try
+        (println "Attempting to load latest data models and configurations...")
+        (init-db! {:env db-env})
+        (println "Knowledgebase created!")
+        (prompt-for-dcc)
+        (catch Exception e
+          (println "Encountered issue during setup:" (.getMessage e))
+          (System/exit 1))))))
