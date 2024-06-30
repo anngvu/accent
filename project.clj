@@ -9,7 +9,8 @@
                  [cheshire "5.13.0"]
                  [org.clojars.huahaiy/datalevin-native "0.9.1"]
                  [org.babashka/http-client "0.4.19"]
-                 [org.sagebionetworks/synapseJavaClient "500.0"]]
+                 [org.sagebionetworks/synapseJavaClient "500.0"]
+                 [com.brunobonacci/mulog "0.9.0"]]
   :jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
   :main ^:skip-aot accent.chat
