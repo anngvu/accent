@@ -6,15 +6,18 @@
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
+            [clojure.string :as str]
             [clojure.java.io :as io]
             [com.brunobonacci.mulog :as mu]))
 
 
-(def init-prompt
+(defn init-prompt
+  []
   [{:role    "system"
-   :content "You are a helpful assistant"}])
+    :content (str "You are a helpful assistant involved with a data coordinating center (DCC) and data management. "
+                  "Unless specified otherwise, the default DCC is " (@u :dcc)) }])
 
-(defonce messages (atom init-prompt))
+(defonce messages (atom nil))
 
 (defonce products (atom nil))
 
@@ -106,10 +109,10 @@
 ;; BASIC CHAT OPS
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn reset-chat!
-  "Let's start over."
+(defn fresh-chat!
+  "New chat / let's start over."
   []
-  (reset! messages init-prompt))
+  (reset! messages (init-prompt)))
 
 
 (defn send [body]
@@ -222,7 +225,10 @@
 
 (defn wrap-ask-database
   [args]
-    (ask-database (args :query)))
+  (->>(ask-database (args :query))
+      (mapcat identity)
+      (vec)
+      (str/join ", ")))
 
 
 (defn with-next-tool-call
@@ -249,7 +255,7 @@
                      "curate_dataset" (wrap-curate-dataset args)
                      "enhance_curation" (wrap-enhance-curation args)
                      "get_database_schema" (show-reference-schema (args :schema_name))
-                     "ask_database" (wrap-ask-database (args :query))
+                     "ask_database" (wrap-ask-database args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         {:tool call-fn
          :result result})
@@ -264,13 +270,13 @@
   (->(assoc message :last true)
      (assoc :total-tokens (get-in response [:usage :total_tokens]))))
 
-
+(declare parse-response)
 
 (defn add-tool-result
   "Intercept tool calls (selecting first of incoming tool calls, ignores parallel calls).
   Add the tool result, whether good or error, so AI can handle it."
   [tool-calls]
-  (let [tool-call (first (tool-calls))
+  (let [tool-call (first tool-calls)
         result (with-next-tool-call (tool-time tool-call))
         msg {:tool_call_id (tool-call :id)
              :role "tool"
@@ -278,12 +284,13 @@
              :content (result :result)}]
     ; if error key present, content is an error message
     ; and AI will likely retry with another tool call
-    (swap! messages conj msg)
     (parse-response (prompt-ai msg (result :next-tool-call)))))
 
 
 (defn parse-response
-  "Add response to messages and return other internal representation if applicable."
+  "Add response to messages and return other internal representation if applicable.
+  Note that everything except tool_calls returns right away;
+  tool_calls can enter a bit of a loop that takes some time to resolve."
   [resp]
   (let [resp       (json/parse-string (:body resp) true)
         msg (get-in resp [:choices 0 :message])
@@ -291,7 +298,7 @@
     (swap! messages conj msg)
     (case finish-reason
       "length" (as-last-message (peek @messages) resp)
-      "tool_calls" (add-tool-result [:choices 0 :message :tool_calls])
+      "tool_calls" (add-tool-result (msg :tool_calls))
       "content_filter" (peek @messages) ;; TODO: handle more specifically
       "stop" (peek @messages))))
 
@@ -341,6 +348,8 @@
 
 (defn -main []
   (setup)
+  (fresh-chat!)
+  ()
   (when :logging
     (add-watch messages :log-chat chat-watcher)
     ;;(mu/start-publisher! {:type :console})
