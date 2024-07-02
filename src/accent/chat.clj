@@ -138,7 +138,8 @@
      (cond->
          {:model   (@u :model)
           :messages @messages
-          :tools tools}
+          :tools tools
+          :parallel_tool_calls false}
        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
      (send)
      )))
