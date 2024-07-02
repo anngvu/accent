@@ -1,5 +1,10 @@
 ## ACCENT
 
+> [!WARNING]  
+> This is a **prototype** application.
+> Development is still working mitigating risks of using generative AI.   
+
+
 ### Motivation
 
 Research communities supported by dedicated data managers receive the benefit of having data packaged and disseminated optimally.  
