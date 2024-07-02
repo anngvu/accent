@@ -6,15 +6,18 @@
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
+            [clojure.string :as str]
             [clojure.java.io :as io]
             [com.brunobonacci.mulog :as mu]))
 
 
-(def init-prompt
+(defn init-prompt
+  []
   [{:role    "system"
-   :content "You are a helpful assistant"}])
+    :content (str "You are a helpful assistant involved with a data coordinating center (DCC) and data management. "
+                  "Unless specified otherwise, the default DCC is " (@u :dcc)) }])
 
-(defonce messages (atom init-prompt))
+(defonce messages (atom nil))
 
 (defonce products (atom nil))
 
@@ -106,10 +109,10 @@
 ;; BASIC CHAT OPS
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn reset-chat!
-  "Let's start over."
+(defn fresh-chat!
+  "New chat / let's start over."
   []
-  (reset! messages init-prompt))
+  (reset! messages (init-prompt)))
 
 
 (defn send [body]
@@ -222,7 +225,10 @@
 
 (defn wrap-ask-database
   [args]
-    (ask-database (args :query)))
+  (->>(ask-database (args :query))
+      (mapcat identity)
+      (vec)
+      (str/join ", ")))
 
 
 (defn with-next-tool-call
@@ -342,6 +348,8 @@
 
 (defn -main []
   (setup)
+  (fresh-chat!)
+  ()
   (when :logging
     (add-watch messages :log-chat chat-watcher)
     ;;(mu/start-publisher! {:type :console})
