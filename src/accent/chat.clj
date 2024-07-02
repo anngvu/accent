@@ -18,7 +18,11 @@
 
 (defonce products (atom nil))
 
-(defonce log (atom []))
+
+(defn chat-watcher [key atom old-state new-state]
+  (let [last-response (last new-state)]
+    (mu/log ::response :message last-response)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; TOOl DEFINITIONS
@@ -55,7 +59,7 @@
      :properties
      {:schema_name
       {:type "string"
-       :enum ["data model" "schematic config"]
+       :enum ["data-model" "schematic-config" "dcc"]
        :description "Name of the desired schema to bring up for reference."}}}
      :required []
      }})
@@ -102,7 +106,9 @@
 ;; BASIC CHAT OPS
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn reset-chat! []
+(defn reset-chat!
+  "Let's start over."
+  []
   (reset! messages init-prompt))
 
 
@@ -113,34 +119,26 @@
                    :body    (json/generate-string body)}))
 
 
-(defn prompt-ai
-  "Prompt ai with possible forced tool choice."
-  [message & [tool-choice]]
-  (swap! messages conj message)
-  (->
-   (cond->
-      {:model   (@u :model)
-       :messages @messages
-       :tools tools}
-     tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
-   (send)
-   ))
-
-
 (defn as-user-message
-  "As default user message"
+  "Structure plain text content"
   [content]
   {:role "user"
    :content content})
 
 
-(defn add-ai-reply
-  "Add conversational AI response message to internal message data +
-  return content element for UI. For tool calls, content will usually be null."
-  [response]
-  (let [msg (get-in response [:choices 0 :message])]
-    (swap! messages conj msg)
-    (msg :content)))
+(defn prompt-ai
+  "Send prompt to ai."
+  [input & [tool-choice]]
+  (let [message (if (string? input) (as-user-message input) input)]
+    (swap! messages conj message)
+    (->
+     (cond->
+         {:model   (@u :model)
+          :messages @messages
+          :tools tools}
+       tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
+     (send)
+     )))
 
 
 (def oops
@@ -153,10 +151,6 @@
    "certain obstacles oppose prompt service"
    "onset of prompting stress"])
 
-
-(defn total-tokens
-  [response]
-  (get-in response [:usage :total_tokens]))
 
 
 (defn save-chat
@@ -191,12 +185,11 @@
   TODO: ability to start new chat and carry over a summary of last chat,
   requires proactive interception with a reasonable buffer before context limit reached."
   [last-response]
-  (print-reply "accent" (add-ai-reply last-response))
   (println)
   (println "-- NOTIFICATION --")
   (println
    (str "Hey, it looks like " (rand-nth oops)
-        ". Context tokens limit has been reached with " (total-tokens last-response) " tokens."))
+        ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
   (save-chat-offer))
 
 
@@ -232,7 +225,7 @@
     (ask-database (args :query)))
 
 
-(defn next-tool-call
+(defn with-next-tool-call
   "Applies logic for chaining certain tool calls when needed.
   Currently, enhance_curation should be forced after curate_dataset.
   Input can be result from `tool-time`. TODO: make more elegant."
@@ -266,12 +259,19 @@
          :error true}))))
 
 
+(defn as-last-message
+  [message response]
+  (->(assoc message :last true)
+     (assoc :total-tokens (get-in response [:usage :total_tokens]))))
+
+
+
 (defn add-tool-result
   "Intercept tool calls (selecting first of incoming tool calls, ignores parallel calls).
   Add the tool result, whether good or error, so AI can handle it."
   [tool-calls]
   (let [tool-call (first (tool-calls))
-        result (tool-time tool-call)
+        result (with-next-tool-call (tool-time tool-call))
         msg {:tool_call_id (tool-call :id)
              :role "tool"
              :name (get-in tool-call [:function :name])
@@ -279,18 +279,21 @@
     ; if error key present, content is an error message
     ; and AI will likely retry with another tool call
     (swap! messages conj msg)
-    (prompt-ai msg (result :next-tool-call))))
+    (parse-response (prompt-ai msg (result :next-tool-call)))))
 
 
 (defn parse-response
+  "Add response to messages and return other internal representation if applicable."
   [resp]
   (let [resp       (json/parse-string (:body resp) true)
+        msg (get-in resp [:choices 0 :message])
         finish-reason (get-in resp [:choices 0 :finish_reason])]
+    (swap! messages conj msg)
     (case finish-reason
-      "length" (assoc resp :final true)
-      "tool_calls" (tool-time (get-in resp [:choices 0 :message :tool_calls]))
-      "content_filter" (add-ai-reply resp) ;; TODO: handle more specifically
-      "stop" (add-ai-reply resp))))
+      "length" (as-last-message (peek @messages) resp)
+      "tool_calls" (add-tool-result [:choices 0 :message :tool_calls])
+      "content_filter" (peek @messages) ;; TODO: handle more specifically
+      "stop" (peek @messages))))
 
 
 (defn prompt-shots
@@ -322,12 +325,15 @@
   []
   (print "New message:")
   (flush)
-  (loop [prompt (as-user-message (read-line))]
-    (let [resp (parse-response (prompt-ai prompt))]
-      (if (:final resp)
-        (context-stop resp)
+  (loop [prompt (read-line)]
+    (let [ai-reply (parse-response (prompt-ai prompt))]
+      (if (:final ai-reply)
         (do
-          (print-reply "accent" resp)
+          (print-reply "accent" (ai-reply :content))
+          (context-stop ai-reply)
+        )
+        (do
+          (print-reply "accent" (ai-reply :content))
           (print "user _ ")
           (flush)
           (recur (read-line)))))))
@@ -335,4 +341,8 @@
 
 (defn -main []
   (setup)
+  (when :logging
+    (add-watch messages :log-chat chat-watcher)
+    ;;(mu/start-publisher! {:type :console})
+    (mu/start-publisher! {:type :simple-file :filename "/tmp/mulog/accent.log"}))
   (chat))
