@@ -262,20 +262,31 @@
 (defn as-bool [s] (boolean (str/replace s "sms:" "")))
 
 
-(defn rules-map-to-array [input-map]
+(defn rules-map-to-array
+  "Coerce a validation rules map to array."
+  [input-map]
   (mapv (fn [[k v]]
           (let [key-str (name k)]
             (str key-str (when (not (empty? v)) (str " " v)))))
         input-map))
 
 
-(defn transform-rules-conditionally
-  "Checks and delegates type of transformation where needed"
+(defn transform-entity
+  "Streamline and correct known inconsistencies in entities:
+  rules structured as maps instead of array,
+  comments that are nil instead of string."
   [entity]
-  (let [rules (entity :sms/validationRules)]
-    (if (map? rules)
-      (update entity :sms/validationRules rules-map-to-array)
-      entity)))
+  (let [type (entity :type)
+        rules (entity :sms/validationRules)
+        comment (entity :rdfs/comment)
+        required (entity :sms/required)
+        comp (entity :sms/requiresComponent)]
+    (cond-> entity
+      required (assoc :sms/required (as-bool required))
+      (vector? type) (assoc :type "rdfs:Class")
+      (map? rules) (assoc :sms/validationRules (rules-map-to-array rules))
+      (nil? comment) (dissoc :rdfs/comment)
+      (nil? comp) (dissoc :sms/requiresComponent))))
 
 
 (defn create-prefix
@@ -309,8 +320,7 @@
   [& {:keys [graph dcc]}]
   (->>(map #(re-prefix % "bts" (create-prefix dcc)) graph)
       (map #(assoc % :dcc dcc))
-      (map #(update % :sms/required as-bool))
-      (map #(transform-rules-conditionally %))
+      (map #(transform-entity %))
       (map rm-default)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -396,8 +406,7 @@
     (try
       (d/transact! conn g)
       (catch Exception e
-        (println "Failed to transact graph at index:" idx)
-        (println "Error:" (.getMessage e))))))
+        (println "Failed to transact graph at index" idx "--" (.getMessage e))))))
 
 
 (defn load-dccs!
@@ -410,6 +419,7 @@
   [conn configs]
   (let [s-configs (map transform-schematic-config configs)]
     (d/transact! conn s-configs)))
+
 
 (defn load-dcc-incrementally!
   [conn configs]
@@ -434,14 +444,13 @@
 
 
 (defn load-graph-incrementally!
-  "Load a graph entity-by-entity; method is mainly to identify entities with issues."
+  "Load a graph entity-by-entity, mainly to identify entities with issues."
   [conn graph]
   (doseq [entity graph]
     (try
       (d/transact! conn [entity])
       (catch Exception e
-        (println "Failed at entity:" (entity :rdfs/label))
-        (println "Error:" (.getMessage e))))))
+        (println "Failed at entity" (entity :rdfs/label) "--" (.getMessage e))))))
 
 
 (defn run-query
