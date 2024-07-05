@@ -66,9 +66,11 @@
 
 
 (defn check-syn-creds []
-  (when-not (@u :sat)
+  (if-let [sat (@u :sat)]
+    (set-syn! sat)
+    (do
      (println "Synapse credentials not detected. Please provide.")
-     (prompt-for-sat)))
+     (prompt-for-sat))))
 
 
 (defn check-openai-creds
