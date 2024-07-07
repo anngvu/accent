@@ -604,6 +604,20 @@
     [?module ?param ?val]])
 
 
+(defn get-asset-view
+  "Lookup asset view given DCC name"
+  [dcc]
+  (->
+   (d/q
+   '[:find ?asset-view-id
+    :in $ ?dcc
+    :where
+    [?e :dcc/name ?dcc]
+    [?e :dcc/synapse_asset_view ?asset-view-id]]
+   (d/db @conn)
+   dcc)
+   (ffirst)))
+
 ;; HELPERS
 ;;
 (defn get-portal-dataset-props

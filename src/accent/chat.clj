@@ -206,7 +206,7 @@
   generate a string representation to pass back to chat messages."
   [args]
   (let [scope (args :scope_id)
-        asset-view (@u :asset_view)
+        asset-view (@u :asset-view)
         dataset-props (get-portal-dataset-props)]
     (try
       (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
@@ -303,6 +303,11 @@
       "content_filter" (peek @messages) ;; TODO: handle more specifically
       "stop" (peek @messages))))
 
+
+(defn reply
+  "Prompting at the repl"
+  [content]
+  (parse-response (prompt-ai content)))
 
 (defn prompt-shots
   "Create prompting environment allowing some number of shots to get a good result,

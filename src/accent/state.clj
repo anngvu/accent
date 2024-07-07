@@ -5,7 +5,7 @@
             [cheshire.core :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [database.dlvn :refer [init-db! run-query conn unique-dccs]]
+            [database.dlvn :refer [init-db! run-query conn unique-dccs get-asset-view]]
             [curate.dataset :refer [new-syn]]))
 
 
@@ -14,6 +14,7 @@
    {:sat (System/getenv "SYNAPSE_AUTH_TOKEN")
     :oak (System/getenv "OPENAI_API_KEY")
     :dcc nil
+    :asset-view nil
     :profile nil
     :model "gpt-3.5-turbo"
     :ui :default}))
@@ -81,7 +82,9 @@
     (prompt-for-api-key)))
 
 
-(defn choose-dcc-def [options]
+(defn choose-dcc-def
+  "User chooses dcc name, which is set in state along with asset view, if found."
+  [options]
   (println "Please choose your DCC by entering the corresponding number:")
   (doseq [i (range (count options))]
     (println (str (inc i) ". " (options i))))
@@ -89,6 +92,7 @@
     (if (and (>= selection 1) (<= selection (count options)))
       (let [dcc (options (dec selection))]
         (swap! u assoc :dcc dcc)
+        (swap! u assoc :asset-view (get-asset-view dcc))
         (println dcc "it is!"))
       (do
         (println "Invalid selection. Please try again.")
@@ -109,23 +113,23 @@
 (def fallback-config
   "Default configuration"
   {:tools true
-   :db-env :test})
+   :db-env :prod})
 
 
 (defn read-config
-  "Configuration for setup"
+  "Configuration for accent"
   [filename]
   (try
-    (with-open [r (io/reader filename)]
+    (with-open [r (java.io.PushbackReader. (io/reader filename))]
       (edn/read r))
     (catch Exception e
-      (println "Config file not found or invalid, using fallback config.")
+      (println "Config file" filename "not found or invalid, using fallback.")
       fallback-config)))
 
 
 (defn setup
   []
-  (let [config (read-config "config.edn")
+  (let [config (read-config "accent.edn")
         tools-enabled (:tools config)
         db-env (:db-env config)]
     (check-openai-creds)
