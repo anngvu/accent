@@ -27,6 +27,16 @@
     (mu/log ::response :message last-response)))
 
 
+
+;; MODELS
+
+(def gpt-models
+  "WIP. Compatible models and summary of behavioral differences."
+  ["gpt-3.5-turbo"
+   "gpt-4o"
+   "gpt-4"
+   "gpt-4-turbo-preview"])
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; TOOl DEFINITIONS
 ;;;;;;;;;;;;;;;;;;;;;
@@ -203,7 +213,7 @@
 
 (defn wrap-curate-dataset
   "Call with additional args in state, store structured result in data products,
-  generate a string representation to pass back to chat messages."
+  generate a string representation for chat messages."
   [args]
   (let [scope (args :scope_id)
         asset-view (@u :asset-view)
@@ -218,10 +228,10 @@
 (defn wrap-enhance-curation
   "Merge AI-generated data with internal data for curated product,
   generate a string summary response.
-  TODO: flexible logic instead of hard-coding to dataset."
+  TODO: validation of AI input + flexible logic instead of hard-coding to dataset."
   [args]
   (swap! products update-in [:dataset] merge args)
-  "Entity has been updated.")
+  "Successful update.")
 
 
 (defn wrap-ask-database
@@ -233,7 +243,7 @@
 
 
 (defn with-next-tool-call
-  "Applies logic for chaining certain tool calls when needed.
+  "Applies logic for chaining certain tool calls.
   Currently, enhance_curation should be forced after curate_dataset.
   Input can be result from `tool-time`. TODO: make more elegant."
   [tc-result]
@@ -328,6 +338,10 @@
   "In practice, number of shots given should vary by tool."
   (prompt-shots add-tool-result 1))
 
+
+(defn switch-gpt
+  [model]
+  (swap! u assoc :model model))
 
 ;;;;;;;;;;;;;;;;;
 ;; CHAT - MAIN
