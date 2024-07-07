@@ -19,6 +19,11 @@
 
 
 (defonce syn (atom nil))
+
+; https://github.com/Sage-Bionetworks/Synapse-Repository-Services/blob/9096fc71a7981ee7a19d507a7838acdadfadc07d/lib/models/src/main/java/org/sagebionetworks/repo/model/AuthorizationConstants.java#L15
+
+(def authenticated-users 273948)
+
 (def public-principal-id 273949)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -185,9 +190,9 @@
 
 
 (defn public-release?
-  "True whether entity has been released for download for signed-in Synapse users, or nil."
+  "True if has been widely released for download to authenticated Synapse users, or nil."
   [^AccessControlList acl]
-  (some #(and (= (.getPrincipalId %) public-principal-id)
+  (some #(and (= (.getPrincipalId %) authenticated-users)
               (.contains (.getAccessType %) ACCESS_TYPE/DOWNLOAD))
         (.getResourceAccess acl)))
 
