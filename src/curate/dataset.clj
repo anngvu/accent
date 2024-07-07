@@ -37,6 +37,7 @@
 
 (defn find-manifest [files] (first (filter manifest-match? files)))
 
+
 (defn s-quote [s] (str "'" s "'"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -66,7 +67,7 @@
   "TODO: Enforce retry count."
   [^SynapseClient client job-token table-id]
   (loop [retry-count 0
-         backoff-ms 100 ; constant polling instead of exponential backoff
+         backoff-ms 200 ; constant polling instead of exponential backoff
          result (try-get-async-result client job-token table-id)]
     (if result
       (do
@@ -130,10 +131,19 @@
 
 
 (defn scope-files 
-  "Uses an asset-view to get a list of file ids in a scope (presumably a folder of contentType=dataset)."
+  "Uses an asset-view to get a list of file ids in a scope (scope~folder of contentType=dataset)."
   [client scope asset-view]
   (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and type='file'"])]
     (query-table client asset-view sql)))
+
+
+(defn scope-manifest
+  "Specifically scope out id for manifest file using expected name pattern"
+  [client scope asset-view]
+  (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and name like '%synapse_storage_manifest.csv'"])]
+    (->(query-table client asset-view sql)
+       (:rows)
+       (ffirst))))
 
 
 (defn get-file-as-creator
@@ -144,14 +154,14 @@
 
 
 (defn download-file
-  [client id destination-path]
+  [client id output-path]
   (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
         file-handle-assoc (doto (FileHandleAssociation.)
                (.setAssociateObjectId id)
                (.setAssociateObjectType FileHandleAssociateType/FileEntity)
                (.setFileHandleId file-handle-id))]
-    (.downloadFile client file-handle-assoc (File. destination-path))
-    destination-path))
+    (.downloadFile client file-handle-assoc (File. output-path))
+    output-path))
 
 
 (defn get-stored-manifest
@@ -161,11 +171,9 @@
   If no manifest file stored at all, use annotations (assuming annotations were applied).
   If the manifest is stored within scope, but there are ACT-controlled restrictions."
   [client scope asset-view]
-  (let [response (scope-files client scope asset-view)
-        manifest-id (find-manifest response)]
-    (if manifest-id
-      (download-file client manifest-id (str scope ".csv"))
-      "Manifest not automatically found")))
+  (if-let [manifest-id (scope-manifest client scope asset-view)]
+    (download-file client manifest-id (str scope "-manifest.csv"))
+    "Manifest not automatically found"))
 
 
 (defn re-manifest
@@ -324,10 +332,9 @@
 
 
 (defn curate-dataset
-  "Curate dataset with several passes/strategies:
-  derive meta determinisically using custom and system meta,
-  have gen AI review and fill other meta, then validate.
-  TODO: validation"
+  "Only the first stage of curate dataset, which involves several passes:
+  a first deterministic pass getting custom and system meta,
+  returning results for AI enhancement."
   [client scope asset-view dataset-props]
   (let [m-file (get-stored-manifest client scope asset-view)
         m' (derive-from-manifest m-file dataset-props)
