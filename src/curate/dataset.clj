@@ -145,7 +145,7 @@
 (defn scope-manifest
   "Specifically scope out id for manifest file using expected name pattern"
   [client scope asset-view]
-  (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and name like '%synapse_storage_manifest.csv'"])]
+  (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and name like 'synapse_storage_manifest%'"])]
     (->(query-table client asset-view sql)
        (:rows)
        (ffirst))))
@@ -338,7 +338,7 @@
 
 (defn curate-dataset
   "Only the first stage of curate dataset, which involves several passes:
-  a first deterministic pass getting custom and system meta,
+  a first deterministic pass to compile custom and system meta,
   returning results for AI enhancement."
   [client scope asset-view dataset-props]
   (let [m-file (get-stored-manifest client scope asset-view)
