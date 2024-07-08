@@ -14,8 +14,8 @@
 (defn init-prompt
   []
   [{:role    "system"
-    :content (str "You are a helpful assistant involved with a data coordinating center (DCC) and data management. "
-                  "Unless specified otherwise, the default DCC is " (@u :dcc)) }])
+    :content (str "You are a helpful assistant for a data coordinating center (DCC). "
+                  "Unless specified otherwise, the reference DCC is " (@u :dcc)) }])
 
 (defonce messages (atom nil))
 
@@ -36,6 +36,11 @@
    "gpt-4o"
    "gpt-4"
    "gpt-4-turbo-preview"])
+
+
+(defn switch-gpt!
+  [model]
+  (swap! u assoc :model model))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; TOOl DEFINITIONS
@@ -125,11 +130,16 @@
   (reset! messages (init-prompt)))
 
 
-(defn send [body]
-  (client/post "https://api.openai.com/v1/chat/completions"
+(defn request-completions [body]
+  (try
+    (client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
                             "Authorization" (str "Bearer " (@u :oak))}
-                   :body    (json/generate-string body)}))
+                  :body    (json/generate-string body)
+                  :timeout 25000}) ; 25 seconds timeout
+    (catch Exception e
+      {:error true
+       :message (str (.getMessage e))})))
 
 
 (defn as-user-message
@@ -144,15 +154,18 @@
   [input & [tool-choice]]
   (let [message (if (string? input) (as-user-message input) input)]
     (swap! messages conj message)
-    (->
-     (cond->
+    (let [response (->
+      (cond->
          {:model   (@u :model)
           :messages @messages
           :tools tools
           :parallel_tool_calls false}
        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
-     (send)
-     )))
+     (request-completions))]
+      (if (:error response)
+        {:error true
+         :message (:message response)}
+        response))))
 
 
 (def oops
@@ -231,6 +244,7 @@
   TODO: validation of AI input + flexible logic instead of hard-coding to dataset."
   [args]
   (swap! products update-in [:dataset] merge args)
+  ;; (println "wrap-enhance-curation applied")
   "Successful update.")
 
 
@@ -298,20 +312,34 @@
     (parse-response (prompt-ai msg (result :next-tool-call)))))
 
 
+(defn check-finish-reason
+  "Forced tool calls have finish reason 'stop' when one might expect
+  'tool_calls' to be the reason. This checks and outputs finish reason more consistently."
+  [resp]
+  (let [stated (get-in resp [:choices 0 :finish_reason])
+        tool_calls (get-in resp [:choices 0 :message :tool_calls])]
+    (if tool_calls "tool_calls" stated)))
+
+
 (defn parse-response
   "Add response to messages and return other internal representation if applicable.
   Note that everything except tool_calls returns right away;
   tool_calls can enter a bit of a loop that takes some time to resolve."
   [resp]
-  (let [resp       (json/parse-string (:body resp) true)
-        msg (get-in resp [:choices 0 :message])
-        finish-reason (get-in resp [:choices 0 :finish_reason])]
-    (swap! messages conj msg)
-    (case finish-reason
-      "length" (as-last-message (peek @messages) resp)
-      "tool_calls" (add-tool-result (msg :tool_calls))
-      "content_filter" (peek @messages) ;; TODO: handle more specifically
-      "stop" (peek @messages))))
+  (if (:error resp)
+    (do
+      (println "Error occurred:" (:message resp))
+      {:role "system"
+       :content (str "An error occurred: " (:message resp))})
+    (let [resp       (json/parse-string (:body resp) true)
+          msg (get-in resp [:choices 0 :message])
+          finish-reason (check-finish-reason resp)]
+      (swap! messages conj msg)
+      (case finish-reason
+        "length" (as-last-message (peek @messages) resp)
+        "tool_calls" (add-tool-result (msg :tool_calls))
+        "content_filter" (peek @messages) ;; TODO: handle more specifically
+        "stop" (peek @messages)))))
 
 
 (defn reply
@@ -339,9 +367,6 @@
   (prompt-shots add-tool-result 1))
 
 
-(defn switch-gpt
-  [model]
-  (swap! u assoc :model model))
 
 ;;;;;;;;;;;;;;;;;
 ;; CHAT - MAIN
