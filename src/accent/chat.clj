@@ -14,8 +14,8 @@
 (defn init-prompt
   []
   [{:role    "system"
-    :content (str "You are a helpful assistant involved with a data coordinating center (DCC) and data management. "
-                  "Unless specified otherwise, the default DCC is " (@u :dcc)) }])
+    :content (str "You are a helpful assistant for a data coordinating center (DCC). "
+                  "Unless specified otherwise, the reference DCC is " (@u :dcc)) }])
 
 (defonce messages (atom nil))
 
@@ -26,6 +26,21 @@
   (let [last-response (last new-state)]
     (mu/log ::response :message last-response)))
 
+
+
+;; MODELS
+
+(def gpt-models
+  "WIP. Compatible models and summary of behavioral differences."
+  ["gpt-3.5-turbo"
+   "gpt-4o"
+   "gpt-4"
+   "gpt-4-turbo-preview"])
+
+
+(defn switch-gpt!
+  [model]
+  (swap! u assoc :model model))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; TOOl DEFINITIONS
@@ -115,11 +130,16 @@
   (reset! messages (init-prompt)))
 
 
-(defn send [body]
-  (client/post "https://api.openai.com/v1/chat/completions"
+(defn request-completions [body]
+  (try
+    (client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
                             "Authorization" (str "Bearer " (@u :oak))}
-                   :body    (json/generate-string body)}))
+                  :body    (json/generate-string body)
+                  :timeout 25000}) ; 25 seconds timeout
+    (catch Exception e
+      {:error true
+       :message (str (.getMessage e))})))
 
 
 (defn as-user-message
@@ -134,15 +154,18 @@
   [input & [tool-choice]]
   (let [message (if (string? input) (as-user-message input) input)]
     (swap! messages conj message)
-    (->
-     (cond->
+    (let [response (->
+      (cond->
          {:model   (@u :model)
           :messages @messages
           :tools tools
           :parallel_tool_calls false}
        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
-     (send)
-     )))
+     (request-completions))]
+      (if (:error response)
+        {:error true
+         :message (:message response)}
+        response))))
 
 
 (def oops
@@ -203,10 +226,10 @@
 
 (defn wrap-curate-dataset
   "Call with additional args in state, store structured result in data products,
-  generate a string representation to pass back to chat messages."
+  generate a string representation for chat messages."
   [args]
   (let [scope (args :scope_id)
-        asset-view (@u :asset_view)
+        asset-view (@u :asset-view)
         dataset-props (get-portal-dataset-props)]
     (try
       (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
@@ -218,10 +241,11 @@
 (defn wrap-enhance-curation
   "Merge AI-generated data with internal data for curated product,
   generate a string summary response.
-  TODO: flexible logic instead of hard-coding to dataset."
+  TODO: validation of AI input + flexible logic instead of hard-coding to dataset."
   [args]
   (swap! products update-in [:dataset] merge args)
-  "Entity has been updated.")
+  ;; (println "wrap-enhance-curation applied")
+  "Successful update.")
 
 
 (defn wrap-ask-database
@@ -233,7 +257,7 @@
 
 
 (defn with-next-tool-call
-  "Applies logic for chaining certain tool calls when needed.
+  "Applies logic for chaining certain tool calls.
   Currently, enhance_curation should be forced after curate_dataset.
   Input can be result from `tool-time`. TODO: make more elegant."
   [tc-result]
@@ -288,21 +312,40 @@
     (parse-response (prompt-ai msg (result :next-tool-call)))))
 
 
+(defn check-finish-reason
+  "Forced tool calls have finish reason 'stop' when one might expect
+  'tool_calls' to be the reason. This checks and outputs finish reason more consistently."
+  [resp]
+  (let [stated (get-in resp [:choices 0 :finish_reason])
+        tool_calls (get-in resp [:choices 0 :message :tool_calls])]
+    (if tool_calls "tool_calls" stated)))
+
+
 (defn parse-response
   "Add response to messages and return other internal representation if applicable.
   Note that everything except tool_calls returns right away;
   tool_calls can enter a bit of a loop that takes some time to resolve."
   [resp]
-  (let [resp       (json/parse-string (:body resp) true)
-        msg (get-in resp [:choices 0 :message])
-        finish-reason (get-in resp [:choices 0 :finish_reason])]
-    (swap! messages conj msg)
-    (case finish-reason
-      "length" (as-last-message (peek @messages) resp)
-      "tool_calls" (add-tool-result (msg :tool_calls))
-      "content_filter" (peek @messages) ;; TODO: handle more specifically
-      "stop" (peek @messages))))
+  (if (:error resp)
+    (do
+      (println "Error occurred:" (:message resp))
+      {:role "system"
+       :content (str "An error occurred: " (:message resp))})
+    (let [resp       (json/parse-string (:body resp) true)
+          msg (get-in resp [:choices 0 :message])
+          finish-reason (check-finish-reason resp)]
+      (swap! messages conj msg)
+      (case finish-reason
+        "length" (as-last-message (peek @messages) resp)
+        "tool_calls" (add-tool-result (msg :tool_calls))
+        "content_filter" (peek @messages) ;; TODO: handle more specifically
+        "stop" (peek @messages)))))
 
+
+(defn reply
+  "Prompting at the repl"
+  [content]
+  (parse-response (prompt-ai content)))
 
 (defn prompt-shots
   "Create prompting environment allowing some number of shots to get a good result,
@@ -322,6 +365,7 @@
 (def one-shot-tool-call
   "In practice, number of shots given should vary by tool."
   (prompt-shots add-tool-result 1))
+
 
 
 ;;;;;;;;;;;;;;;;;
