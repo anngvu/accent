@@ -58,8 +58,8 @@ Planned functionality have been scoped/mapped as below for specific versions:
     - Working `ask_database` function call
 - **v0.3** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
     - Appropriate prompts for viz
-    - Example `visualize` function call for data model
-    - Example `visualize` function call for dataset
+    - Example `visualize` function call for **data model**
+    - Example `visualize` function call for **dataset**
 - **v0.4** - Implement upgraded interface as alternative to the basic console: TUI or simple web UI.
 
 
