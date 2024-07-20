@@ -469,6 +469,16 @@
     (run-query @conn q)))
 
 
+(defn text-search
+  "Convenience function for text search."
+  [query-text]
+  (d/q '[:find ?label ?desc
+           :in $ ?q
+           :where [(fulltext $ ?q) [[?e ?a ?desc]]] [?e :sms/displayName ?label]]
+          (d/db @conn)
+          query-text))
+
+
 (defn write-json-file [data file-path]
   (with-open [writer (io/writer file-path)]
     (json/generate-stream data writer)))

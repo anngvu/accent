@@ -9,7 +9,7 @@
   (:import [org.sagebionetworks.client SynapseClient SynapseClientImpl]
            [org.sagebionetworks.client.exceptions SynapseException SynapseResultNotReadyException]
            [org.sagebionetworks.repo.model.table Query QueryBundleRequest QueryResult QueryResultBundle Row RowSet]
-           [org.sagebionetworks.repo.model AccessControlList ACCESS_TYPE Project RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType UserProfile]
+           [org.sagebionetworks.repo.model Project Folder AccessControlList ACCESS_TYPE Project RestrictionInformationRequest RestrictionInformationResponse RestrictableObjectType UserProfile]
            [org.sagebionetworks.repo.model.file FileHandleAssociation FileHandleAssociateType]
            [java.io File]))
 
@@ -151,6 +151,31 @@
        (ffirst))))
 
 
+(defn scope-dataset-folders
+  "Uses an asset-view to get dataset folders based on contentType=dataset in a project"
+  [client project asset-view]
+  (let [sql (str/join " " ["SELECT id,name FROM" asset-view "WHERE type='folder' and contentType='dataset' and projectId='" project "'"])]
+    (->>(query-table client asset-view sql)
+        (:rows))))
+
+
+(defn format-item [[id name]]
+  (format "{ id: '%s', name: '%s' }" id name))
+
+(defn format-data [data]
+  (str "["
+       (str/join ", " (map format-item data))
+       "]"))
+
+(defn scope-dataset-folders-report
+  "Wrapper for user-friendly report of scope-dataset-folders"
+  [client project asset-view]
+  (let [result (scope-dataset-folders client project asset-view)]
+    (if (count result)
+      (str "Multiple potential datasets found for project. Here are candidates for further selection: " (format-data result))
+      "No potential datasets found in project scope.")))
+
+
 (defn get-file-as-creator
   [client id]
   (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
@@ -204,12 +229,12 @@
 
 
 (defn get-parent-project-id
+  "Get parent project for some entity within that project."
   [client id]
   (let [entity (.getEntityById client id)]
     (if (instance? Project entity)
       id
       (recur client (.getParentId entity)))))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -301,7 +326,6 @@
    })
 
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -336,12 +360,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(defn curate-dataset
-  "Only the first stage of curate dataset, which involves several passes:
-  a first deterministic pass to compile custom and system meta,
-  returning results for AI enhancement."
+(defn curate-dataset-folder
+  "Implements a deterministic first pass over a dataset folder
+  to compile custom and system meta, then returning results for AI enhancement."
   [client scope asset-view dataset-props]
   (let [m-file (get-stored-manifest client scope asset-view)
         m' (derive-from-manifest m-file dataset-props)
         s' (derive-from-system client scope asset-view)]
     (merge m' s')))
+
+
+(defn curate-dataset
+  "Currently what's expected in workflow is limited to marked folders,
+  even if conceptually it is valid for the input to be a single file,
+  a single table, an entire project with various entities, etc."
+  [client scope asset-view dataset-props]
+   (let [entity (.getEntityById client scope)]
+     (cond
+       (instance? Project entity) { :type :redirect :result (scope-dataset-folders-report client entity asset-view) }
+       (instance? Folder entity) { :type :success :result (curate-dataset-folder client entity asset-view dataset-props) }
+       :else { :type :error :result "Curation workflow requires given scope to be a Project or a Folder."})))

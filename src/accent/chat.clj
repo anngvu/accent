@@ -27,11 +27,10 @@
     (mu/log ::response :message last-response)))
 
 
-
 ;; MODELS
 
 (def gpt-models
-  "WIP. Compatible models and summary of behavioral differences."
+  "WIP: Recommendation for models and summary of behavioral differences."
   ["gpt-3.5-turbo"
    "gpt-4o"
    "gpt-4"
@@ -124,7 +123,7 @@
 ;; BASIC CHAT OPS
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn fresh-chat!
+(defn new-chat!
   "New chat / let's start over."
   []
   (reset! messages (init-prompt)))
@@ -257,11 +256,11 @@
 
 
 (defn with-next-tool-call
-  "Applies logic for chaining certain tool calls.
-  Currently, enhance_curation should be forced after curate_dataset.
-  Input can be result from `tool-time`. TODO: make more elegant."
+  "Applies logic for chaining certain tool calls. Input should be result from `tool-time`
+  Currently, enhance_curation should be forced after curate_dataset only under certain return types.
+  TODO: make more elegant since potentially a lot more will be included."
   [tc-result]
-  (if (and (not (tc-result :error)) (= "curate_dataset" (tc-result :tool)))
+  (if (and (= "curate_dataset" (tc-result :tool)) (= :success (tc-result :type)))
     (assoc tc-result :next-tool-call "enhance_curation")
     tc-result))
 
@@ -282,8 +281,9 @@
                      "get_database_schema" (show-reference-schema (args :schema_name))
                      "ask_database" (wrap-ask-database args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
-        {:tool call-fn
-         :result result})
+        (if (map? result)
+          (merge  {:tool call-fn } result)
+          {:tool call-fn :result result}))
       (catch Exception e
         {:tool call-fn
          :result (.getMessage e)
@@ -313,8 +313,9 @@
 
 
 (defn check-finish-reason
-  "Forced tool calls have finish reason 'stop' when one might expect
-  'tool_calls' to be the reason. This checks and outputs finish reason more consistently."
+  "*Forced* tool calls actually have finish reason 'stop' when one might expect
+  'tool_calls' to be the reason (as with unforced tool calls).
+  This checks and outputs finish reason more consistently."
   [resp]
   (let [stated (get-in resp [:choices 0 :finish_reason])
         tool_calls (get-in resp [:choices 0 :message :tool_calls])]
@@ -324,7 +325,7 @@
 (defn parse-response
   "Add response to messages and return other internal representation if applicable.
   Note that everything except tool_calls returns right away;
-  tool_calls can enter a bit of a loop that takes some time to resolve."
+  tool_calls can enter a bit of a loop that takes longer to resolve."
   [resp]
   (if (:error resp)
     (do
@@ -393,7 +394,7 @@
 
 (defn -main []
   (setup)
-  (fresh-chat!)
+  (new-chat!)
   ()
   (when :logging
     (add-watch messages :log-chat chat-watcher)
