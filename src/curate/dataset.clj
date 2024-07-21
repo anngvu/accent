@@ -160,11 +160,11 @@
 
 
 (defn format-item [[id name]]
-  (format "{ id: '%s', name: '%s' }" id name))
+  (str "{ id: " id ", name: " name "}"))
 
 (defn format-data [data]
   (str "["
-       (str/join ", " (map format-item data))
+       (str/join ", " (mapv format-item data))
        "]"))
 
 (defn scope-dataset-folders-report
@@ -172,7 +172,7 @@
   [client project asset-view]
   (let [result (scope-dataset-folders client project asset-view)]
     (if (count result)
-      (str "Multiple potential datasets found for project. Here are candidates for further selection: " (format-data result))
+      (str "Multiple potential datasets found for project. Candidates for further selection: " (format-data result))
       "No potential datasets found in project scope.")))
 
 
@@ -377,6 +377,6 @@
   [client scope asset-view dataset-props]
    (let [entity (.getEntityById client scope)]
      (cond
-       (instance? Project entity) { :type :redirect :result (scope-dataset-folders-report client entity asset-view) }
-       (instance? Folder entity) { :type :success :result (curate-dataset-folder client entity asset-view dataset-props) }
+       (instance? Project entity) { :type :redirect :result (scope-dataset-folders-report client scope asset-view) }
+       (instance? Folder entity) { :type :success :result (curate-dataset-folder client scope asset-view dataset-props) }
        :else { :type :error :result "Curation workflow requires given scope to be a Project or a Folder."})))
