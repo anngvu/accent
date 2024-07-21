@@ -14,8 +14,10 @@
 (defn init-prompt
   []
   [{:role    "system"
-    :content (str "You are a helpful assistant for a data coordinating center (DCC). "
-                  "Unless specified otherwise, the reference DCC is " (@u :dcc)) }])
+    :content (str "You are a helpful data management assistant for a data coordinating center (DCC). "
+                  "Unless specified otherwise, your DCC is " (@u :dcc) ". "
+                  "You help users with searching and curating data on Synapse "
+                  "and working with dcc-specific data dictionaries and configurations.")}])
 
 (defonce messages (atom nil))
 
@@ -282,6 +284,13 @@
       (mapcat identity)
       (vec)
       (str/join ", ")))
+
+
+(defn wrap-ask-searchable-table-fields []
+  "TODO")
+
+(defn wrap-ask-synapse []
+  "TODO")
 
 
 (defn with-next-tool-call
