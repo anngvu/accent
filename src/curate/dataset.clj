@@ -119,6 +119,13 @@
            :coltypes (get-column-types rowset)})))))
 
 
+(defn get-table-column-models
+  "Return just name and type of columns configured for a table"
+  [^SynapseClient client table-id]
+  (->>(.getColumnModelsForTableEntity client table-id)
+      (.toString)))
+
+
 (defn get-restriction-level
   "Get an ENTITY's restriction level (OPEN|RESTRICTED_BY_TERMS_OF_USE|CONTROLLED_BY_ACT)"
   [client subject-id]
@@ -129,7 +136,7 @@
 
 
 (defn get-acl
-  "ACL may not exist on entity directly so must first get benefactor id."
+  "ACL may not exist on entity directly so must always first get benefactor id."
   [client id]
   (let [benefactor (.getId (.getEntityBenefactor client id))]
     (.getACL client benefactor)))
@@ -160,7 +167,7 @@
 
 
 (defn format-item [[id name]]
-  (str "{ id: " id ", name: " name "}"))
+  (str "{ id: '" id "', name: '" name "'}"))
 
 (defn format-data [data]
   (str "["
