@@ -75,10 +75,7 @@ We would have to ask a user, "How would you compare using this versus trying to 
 2. Incorporates ChatGPT but via the default online chat interface.
 3. Incorporates LLM/multiple LLMs through a different custom interface/solution.
 
-There is also workflow-specific research needed:
-
-##### Data model exploration
-- 
+There is also workflow-specific research needed. To be continued...
 
 ---
 
