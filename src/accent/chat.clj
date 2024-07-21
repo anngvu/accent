@@ -68,7 +68,7 @@
   {:type "function"
    :function
    {:name "get_database_schema"
-    :description (str "Get a database schema reference in order to construct a correct query for answering the user question."
+    :description (str "Use to retrieve the relevant schema reference to help construct a correct query for the user question."
                       "Then use ask_database with the constructed query.")
     :parameters
     {:type "object"
@@ -85,7 +85,7 @@
   {:type "function"
    :function
    {:name "ask_database"
-    :description (str "Use this to answer user questions about the different data coordinating center data models and entities.
+    :description (str "Use this to answer user questions about the different data coordinating center data dictionaries and entities.
                       Input should be a valid Datomic query.")
     :parameters
     {:type "object"
@@ -114,6 +114,36 @@
       }
      :required ["title" "description"] }}})
 
+
+(def get_searchable_table_fields_spec
+  {:type "function"
+   :function
+   {:name "get_searchable_fields"
+    :description (str "Use this to confirm the availability of a Synapse table id and searchable fields to help answer the user questions. "
+                      "In some cases, the available fields may not be sufficient for the question. "
+                      "Use the result to construct a query for ask_synapse or explain why the question cannot be answered.")
+    :parameters
+    {:type "object"
+     :properties
+     {:table_id
+      {:type "string"
+       :description (str "A Synapse table id, e.g 'syn543534645';"
+                         "This can be automatically detected so should only be specified if the user provides another id.")}}}
+    :required []}})
+
+
+(def ask_synapse_spec
+  {:type "function"
+   :function
+   {:name "ask_synapse"
+    :description (str "Use to send a SQL query to Synapse to help answer a user question; "
+                      "query should include only searchable fields and not contain any update clauses.")
+    :parameters
+    {:type "object"
+     :properties
+     {:query
+      {:type "string"
+       :description "A valid SQL query."}}}}})
 
 (def tools [curate_dataset_spec get_database_schema_spec ask_database_spec enhance_curation_spec])
 
@@ -232,7 +262,7 @@
     (try
       (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
       ;; (swap! products assoc :supplement "") ;; relevant text excerpts to provide more context
-      (str (@products :dataset)) ;; (@products :supplement))
+      (str (@products :dataset :result)) ;; (@products :supplement))
       )))
 
 
@@ -241,7 +271,7 @@
   generate a string summary response.
   TODO: validation of AI input + flexible logic instead of hard-coding to dataset."
   [args]
-  (swap! products update-in [:dataset] merge args)
+  (swap! products update-in [:dataset :result] merge args)
   ;; (println "wrap-enhance-curation applied")
   "Successful update.")
 
