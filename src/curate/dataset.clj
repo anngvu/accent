@@ -79,7 +79,7 @@
         (println "Results retrieved.")
         result)
       (do
-        (println "Async job not ready yet. Retrying...")
+        (println "Waiting for Synapse query result...")
         (Thread/sleep backoff-ms)
         (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id))))))
 
