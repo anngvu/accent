@@ -58,7 +58,7 @@
        :description "The scope id to use, e.g. 'syn12345678'"}
       :manifest_id
       {:type "string"
-       :description (str "The manifest id, e.g. 'syn12345678'."
+       :description (str "The manifest id, e.g. 'syn224466889'."
                          "While the manifest can be automatically discovered in most cases,"
                          " when not in the expected location the id should be provided.")}}}
     :required ["scope_id"] }})
@@ -68,8 +68,7 @@
   {:type "function"
    :function
    {:name "get_database_schema"
-    :description (str "If a database schema reference is needed to help construct a query that answers the user question, "
-                      "use this to get the schema first. "
+    :description (str "Get a database schema reference in order to construct a correct query for answering the user question."
                       "Then use ask_database with the constructed query.")
     :parameters
     {:type "object"
@@ -233,7 +232,7 @@
     (try
       (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
       ;; (swap! products assoc :supplement "") ;; relevant text excerpts to provide more context
-      (str (@products :dataset) "\n") ;; (@products :supplement))
+      (str (@products :dataset)) ;; (@products :supplement))
       )))
 
 
