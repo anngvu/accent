@@ -286,7 +286,11 @@
       (str/join ", ")))
 
 
-(defn wrap-ask-searchable-table-fields []
+(defn wrap-ask-searchable-table-fields
+  "Wrap functionality that retrieves columns configured for the searchable table and
+  combine this with data model descriptions / enums to provide as needed context.
+  The searchable table defaults to the main asset-view but can be switched out by the user."
+  [args]
   "TODO")
 
 (defn wrap-ask-synapse []
