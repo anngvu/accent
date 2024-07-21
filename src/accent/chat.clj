@@ -14,8 +14,10 @@
 (defn init-prompt
   []
   [{:role    "system"
-    :content (str "You are a helpful assistant for a data coordinating center (DCC). "
-                  "Unless specified otherwise, the reference DCC is " (@u :dcc)) }])
+    :content (str "You are a helpful data management assistant for a data coordinating center (DCC). "
+                  "Unless specified otherwise, your DCC is " (@u :dcc) ". "
+                  "You help users with searching and curating data on Synapse "
+                  "and working with dcc-specific data dictionaries and configurations.")}])
 
 (defonce messages (atom nil))
 
@@ -27,11 +29,10 @@
     (mu/log ::response :message last-response)))
 
 
-
 ;; MODELS
 
 (def gpt-models
-  "WIP. Compatible models and summary of behavioral differences."
+  "WIP: Recommendation for models and summary of behavioral differences."
   ["gpt-3.5-turbo"
    "gpt-4o"
    "gpt-4"
@@ -59,7 +60,7 @@
        :description "The scope id to use, e.g. 'syn12345678'"}
       :manifest_id
       {:type "string"
-       :description (str "The manifest id, e.g. 'syn12345678'."
+       :description (str "The manifest id, e.g. 'syn224466889'."
                          "While the manifest can be automatically discovered in most cases,"
                          " when not in the expected location the id should be provided.")}}}
     :required ["scope_id"] }})
@@ -69,8 +70,7 @@
   {:type "function"
    :function
    {:name "get_database_schema"
-    :description (str "If a database schema reference is needed to help construct a query that answers the user question, "
-                      "use this to get the schema first. "
+    :description (str "Use to retrieve the relevant schema reference to help construct a correct query for the user question."
                       "Then use ask_database with the constructed query.")
     :parameters
     {:type "object"
@@ -87,7 +87,7 @@
   {:type "function"
    :function
    {:name "ask_database"
-    :description (str "Use this to answer user questions about the different data coordinating center data models and entities.
+    :description (str "Use this to answer user questions about the different data coordinating center data dictionaries and entities.
                       Input should be a valid Datomic query.")
     :parameters
     {:type "object"
@@ -117,6 +117,36 @@
      :required ["title" "description"] }}})
 
 
+(def get_searchable_table_fields_spec
+  {:type "function"
+   :function
+   {:name "get_searchable_fields"
+    :description (str "Use this to confirm the availability of a Synapse table id and searchable fields to help answer the user questions. "
+                      "In some cases, the available fields may not be sufficient for the question. "
+                      "Use the result to construct a query for ask_synapse or explain why the question cannot be answered.")
+    :parameters
+    {:type "object"
+     :properties
+     {:table_id
+      {:type "string"
+       :description (str "A Synapse table id, e.g 'syn543534645';"
+                         "This can be automatically detected so should only be specified if the user provides another id.")}}}
+    :required []}})
+
+
+(def ask_synapse_spec
+  {:type "function"
+   :function
+   {:name "ask_synapse"
+    :description (str "Use to send a SQL query to Synapse to help answer a user question; "
+                      "query should include only searchable fields and not contain any update clauses.")
+    :parameters
+    {:type "object"
+     :properties
+     {:query
+      {:type "string"
+       :description "A valid SQL query."}}}}})
+
 (def tools [curate_dataset_spec get_database_schema_spec ask_database_spec enhance_curation_spec])
 
 
@@ -124,7 +154,7 @@
 ;; BASIC CHAT OPS
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn fresh-chat!
+(defn new-chat!
   "New chat / let's start over."
   []
   (reset! messages (init-prompt)))
@@ -234,7 +264,7 @@
     (try
       (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
       ;; (swap! products assoc :supplement "") ;; relevant text excerpts to provide more context
-      (str (@products :dataset) "\n") ;; (@products :supplement))
+      (str (@products :dataset :result)) ;; (@products :supplement))
       )))
 
 
@@ -243,7 +273,7 @@
   generate a string summary response.
   TODO: validation of AI input + flexible logic instead of hard-coding to dataset."
   [args]
-  (swap! products update-in [:dataset] merge args)
+  (swap! products update-in [:dataset :result] merge args)
   ;; (println "wrap-enhance-curation applied")
   "Successful update.")
 
@@ -256,12 +286,23 @@
       (str/join ", ")))
 
 
+(defn wrap-ask-searchable-table-fields
+  "Wrap functionality that retrieves columns configured for the searchable table and
+  combine this with data model descriptions / enums to provide as needed context.
+  The searchable table defaults to the main asset-view but can be switched out by the user."
+  [args]
+  "TODO")
+
+(defn wrap-ask-synapse []
+  "TODO")
+
+
 (defn with-next-tool-call
-  "Applies logic for chaining certain tool calls.
-  Currently, enhance_curation should be forced after curate_dataset.
-  Input can be result from `tool-time`. TODO: make more elegant."
+  "Applies logic for chaining certain tool calls. Input should be result from `tool-time`
+  Currently, enhance_curation should be forced after curate_dataset only under certain return types.
+  TODO: make more elegant since potentially a lot more will be included."
   [tc-result]
-  (if (and (not (tc-result :error)) (= "curate_dataset" (tc-result :tool)))
+  (if (and (= "curate_dataset" (tc-result :tool)) (= :success (tc-result :type)))
     (assoc tc-result :next-tool-call "enhance_curation")
     tc-result))
 
@@ -282,8 +323,9 @@
                      "get_database_schema" (show-reference-schema (args :schema_name))
                      "ask_database" (wrap-ask-database args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
-        {:tool call-fn
-         :result result})
+        (if (map? result)
+          (merge  {:tool call-fn } result)
+          {:tool call-fn :result result}))
       (catch Exception e
         {:tool call-fn
          :result (.getMessage e)
@@ -313,8 +355,9 @@
 
 
 (defn check-finish-reason
-  "Forced tool calls have finish reason 'stop' when one might expect
-  'tool_calls' to be the reason. This checks and outputs finish reason more consistently."
+  "*Forced* tool calls actually have finish reason 'stop' when one might expect
+  'tool_calls' to be the reason (as with unforced tool calls).
+  This checks and outputs finish reason more consistently."
   [resp]
   (let [stated (get-in resp [:choices 0 :finish_reason])
         tool_calls (get-in resp [:choices 0 :message :tool_calls])]
@@ -324,7 +367,7 @@
 (defn parse-response
   "Add response to messages and return other internal representation if applicable.
   Note that everything except tool_calls returns right away;
-  tool_calls can enter a bit of a loop that takes some time to resolve."
+  tool_calls can enter a bit of a loop that takes longer to resolve."
   [resp]
   (if (:error resp)
     (do
@@ -393,7 +436,7 @@
 
 (defn -main []
   (setup)
-  (fresh-chat!)
+  (new-chat!)
   ()
   (when :logging
     (add-watch messages :log-chat chat-watcher)
