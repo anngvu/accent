@@ -473,10 +473,10 @@
   "Convenience function for text search."
   [query-text]
   (d/q '[:find ?label ?desc
-           :in $ ?q
-           :where [(fulltext $ ?q) [[?e ?a ?desc]]] [?e :sms/displayName ?label]]
-          (d/db @conn)
-          query-text))
+         :in $ ?q
+         :where [(fulltext $ ?q) [[?e ?a ?desc]]] [?e :sms/displayName ?label]]
+        (d/db @conn)
+        query-text))
 
 
 (defn write-json-file [data file-path]
@@ -519,11 +519,44 @@
 ;;
 ;;;;;;;;;;;
 
+
+(defn get-description-with-display-name
+  "Get description for given display label,
+  which is retrieved (rather unintuitively) via rdfs/comment"
+  [display-name dcc]
+  (d/q
+   '[:find ?desc
+     :in $ ?name ?dcc
+     :where
+     [?e :sms/displayName ?name]
+     [?e :rdfs/comment ?desc]
+     [?e :dcc ?dcc]]
+   (d/db @conn)
+   display-name dcc))
+
+
+(defn get-deps
+  "Use to get props given class, or valid values given attribute.
+  Constrained to DCC."
+  [display-name dcc]
+  (d/q
+   '[:find ?dep-name
+     :in $ ?display-name ?dcc
+     :where
+     [?e :sms/displayName ?display-name]
+     [?e ?attr ?ref]
+     [?ref :sms/displayName ?dep-name]
+     [?e :dcc ?dcc]]
+   (d/db @conn)
+   display-name dcc))
+
+
 (def required?
  '[:find ?e ?val
    :where
    [?e :sms/required ?val]
    [?e :sms/displayName ?displayName]])
+
 
 (def count-required
 '[:find (count ?e)
@@ -556,6 +589,7 @@
     :where
     [?e :rdfs/label "ScRNA-seqLevel1"]
     [?e ?attr ?val]])
+
 
 (def required-by-dcc
   "TODO: debug and simplify"
@@ -596,15 +630,6 @@
    [?e :sms/required true]])
 
 
-(def portal-dataset-props
-  "Find portal dataset schema via exact name match (compare this against text search)"
-  '[:find ?label
-    :where
-    [?e :rdfs/label "PortalDataset"]
-    [?e ?attr ?ref]
-    [?ref :sms/displayName ?label]])
-
-
 (def get-nf-schematic-config
   '[:find ?param ?val
     :where
@@ -628,8 +653,10 @@
    dcc)
    (ffirst)))
 
-;; HELPERS
-;;
+
+;; Shortcuts to common queries part of workflow
+
 (defn get-portal-dataset-props
+  "TODO Update with customizable DCC. Hard-coded for now since only possible for NF"
   []
-  (vec (mapcat identity (run-query @conn portal-dataset-props))))
+  (vec (mapcat identity (get-deps "PortalDataset" "NF-OSI"))))
