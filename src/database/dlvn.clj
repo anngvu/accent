@@ -654,9 +654,23 @@
    (ffirst)))
 
 
-;; Shortcuts to common queries part of workflow
+;; Helpers for common queries part of workflow
+
+(defn as-vec [result]
+  (vec (mapcat identity result)))
 
 (defn get-portal-dataset-props
   "TODO Update with customizable DCC. Hard-coded for now since only possible for NF"
   []
-  (vec (mapcat identity (get-deps "PortalDataset" "NF-OSI"))))
+  (as-vec (get-deps "PortalDataset" "NF-OSI")))
+
+
+(defn as-schema
+  "Create a schema given a collection of entity display names by retrieving
+  description and enums (valid values)"
+  [entities dcc]
+  (mapv
+   (fn [k] {:name k
+            :description (ffirst (get-description-with-display-name k dcc))
+            :enum (as-vec (get-deps k dcc))})
+   entities))

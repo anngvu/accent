@@ -1,8 +1,8 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [curate.dataset :refer [syn curate-dataset]]
-            [database.dlvn :refer [show-reference-schema ask-database get-portal-dataset-props]]
+            [curate.dataset :refer [syn curate-dataset get-table-column-models]]
+            [database.dlvn :refer [show-reference-schema ask-database get-portal-dataset-props as-schema]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
@@ -87,8 +87,9 @@
   {:type "function"
    :function
    {:name "ask_database"
-    :description (str "Use this to answer user questions about the different data coordinating center data dictionaries and entities.
-                      Input should be a valid Datomic query.")
+    :description (str "Use this to answer user questions about the different data coordinating center "
+                      "data dictionaries and entities. "
+                      "Input should be a valid Datomic query.")
     :parameters
     {:type "object"
      :properties
@@ -117,11 +118,12 @@
      :required ["title" "description"] }}})
 
 
-(def get_searchable_table_fields_spec
+(defn get_queryable_table_fields_spec
+  [table-id]
   {:type "function"
    :function
-   {:name "get_searchable_fields"
-    :description (str "Use this to confirm the availability of a Synapse table id and searchable fields to help answer the user questions. "
+   {:name "get_queryable_fields"
+    :description (str "Use this to confirm the availability of a Synapse table id and its queryable fields to help answer user questions. "
                       "In some cases, the available fields may not be sufficient for the question. "
                       "Use the result to construct a query for ask_synapse or explain why the question cannot be answered.")
     :parameters
@@ -129,17 +131,18 @@
      :properties
      {:table_id
       {:type "string"
-       :description (str "A Synapse table id, e.g 'syn543534645';"
-                         "This can be automatically detected so should only be specified if the user provides another id.")}}}
-    :required []}})
+       :description (str "By default, use table id " table-id
+                         ", which is the main asset view, unless user provides another id.")}}}
+    :required ["table_id"]}})
 
 
-(def ask_synapse_spec
+(def ask_table_spec
   {:type "function"
    :function
-   {:name "ask_synapse"
-    :description (str "Use to send a SQL query to Synapse to help answer a user question; "
-                      "query should include only searchable fields and not contain any update clauses.")
+   {:name "ask_table"
+    :description (str "Use to query table with SQL to help answer a user question; "
+                      "query should include only searchable fields;"
+                      "a subset of valid SQL is allowed -- do not include update clauses.")
     :parameters
     {:type "object"
      :properties
@@ -147,7 +150,15 @@
       {:type "string"
        :description "A valid SQL query."}}}}})
 
-(def tools [curate_dataset_spec get_database_schema_spec ask_database_spec enhance_curation_spec])
+
+(defn tools
+  [table-id]
+  [curate_dataset_spec
+   get_database_schema_spec
+   ask_database_spec
+   enhance_curation_spec
+   (get_queryable_table_fields_spec table-id)
+   ask_table_spec])
 
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -209,7 +220,6 @@
    "onset of prompting stress"])
 
 
-
 (defn save-chat
   [filename]
   (let [json-str (json/generate-string @messages)]
@@ -254,6 +264,7 @@
 ;; TOOL CALL OPS
 ;; ;;;;;;;;;;;;;;;;;;;;
 
+
 (defn wrap-curate-dataset
   "Call with additional args in state, store structured result in data products,
   generate a string representation for chat messages."
@@ -261,11 +272,9 @@
   (let [scope (args :scope_id)
         asset-view (@u :asset-view)
         dataset-props (get-portal-dataset-props)]
-    (try
-      (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
-      ;; (swap! products assoc :supplement "") ;; relevant text excerpts to provide more context
-      (str (@products :dataset :result)) ;; (@products :supplement))
-      )))
+    (swap! products assoc :dataset (curate-dataset @syn scope asset-view dataset-props))
+    ;; (swap! products assoc :supplement "") ;; relevant text excerpts to provide more context
+    (str (@products :dataset :result)))) ;; (@products :supplement))
 
 
 (defn wrap-enhance-curation
@@ -274,7 +283,6 @@
   TODO: validation of AI input + flexible logic instead of hard-coding to dataset."
   [args]
   (swap! products update-in [:dataset :result] merge args)
-  ;; (println "wrap-enhance-curation applied")
   "Successful update.")
 
 
@@ -286,14 +294,20 @@
       (str/join ", ")))
 
 
-(defn wrap-ask-searchable-table-fields
-  "Wrap functionality that retrieves columns configured for the searchable table and
-  combine this with data model descriptions / enums to provide as needed context.
-  The searchable table defaults to the main asset-view but can be switched out by the user."
+(defn wrap-ask-queryable-table-fields
+  "Retrieve columns configured for Synapse table,
+  look up descriptions / enums in data model, and merge data to provide contextual schema.
+  Note: may need to involve schematic configuration as well for some DCCs."
   [args]
-  "TODO")
+  (let [table-id (args :table-id)
+        cols (get-table-column-models @syn table-id)
+        table-schema (as-schema cols (@u :dcc))]
+    (str table-schema)))
 
-(defn wrap-ask-synapse []
+
+(defn wrap-ask-synapse-table
+  "Wrap query a Synapse table (NOT all of Synapse)"
+  []
   "TODO")
 
 
