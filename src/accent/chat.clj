@@ -15,7 +15,7 @@
   []
   [{:role    "system"
     :content (str "You are a helpful data management assistant for a data coordinating center (DCC). "
-                  "Unless specified otherwise, your DCC is " (@u :dcc) ". "
+                  "Unless specified otherwise, your DCC is '" (@u :dcc) "' and your asset view has id " (@u :asset-view) "."
                   "You help users with searching and curating data on Synapse "
                   "and working with dcc-specific data dictionaries and configurations.")}])
 
@@ -118,8 +118,7 @@
      :required ["title" "description"] }}})
 
 
-(defn get_queryable_table_fields_spec
-  [table-id]
+(def get_queryable_fields_spec
   {:type "function"
    :function
    {:name "get_queryable_fields"
@@ -131,8 +130,8 @@
      :properties
      {:table_id
       {:type "string"
-       :description (str "By default, use table id " table-id
-                         ", which is the main asset view, unless user provides another id.")}}}
+       :description (str "By default, use asset view for table id "
+                         "unless user provides another id.")}}}
     :required ["table_id"]}})
 
 
@@ -151,13 +150,12 @@
        :description "A valid SQL query."}}}}})
 
 
-(defn tools
-  [table-id]
+(def tools
   [curate_dataset_spec
    get_database_schema_spec
    ask_database_spec
    enhance_curation_spec
-   (get_queryable_table_fields_spec table-id)
+   get_queryable_fields_spec
    ask_table_spec])
 
 
@@ -261,8 +259,8 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;
-;; TOOL CALL OPS
-;; ;;;;;;;;;;;;;;;;;;;;
+;; TOOL CALL WRAPPERS
+;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn wrap-curate-dataset
@@ -294,22 +292,25 @@
       (str/join ", ")))
 
 
-(defn wrap-ask-queryable-table-fields
+(defn wrap-get-queryable-fields
   "Retrieve columns configured for Synapse table,
   look up descriptions / enums in data model, and merge data to provide contextual schema.
   Note: may need to involve schematic configuration as well for some DCCs."
-  [args]
-  (let [table-id (args :table-id)
-        cols (get-table-column-models @syn table-id)
+  [{:keys [table_id] :or {table_id (@u :asset-view)}}]
+  (let [cols (get-table-column-models @syn table_id)
         table-schema (as-schema cols (@u :dcc))]
     (str table-schema)))
 
 
-(defn wrap-ask-synapse-table
-  "Wrap query a Synapse table (NOT all of Synapse)"
-  []
+(defn wrap-ask-table
+  "Wrap a query to a Synapse table (NOT all of Synapse)"
+  [args]
   "TODO")
 
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; TOOL CALLS
+;; ;;;;;;;;;;;;;;;;;;;;
 
 (defn with-next-tool-call
   "Applies logic for chaining certain tool calls. Input should be result from `tool-time`
@@ -324,7 +325,7 @@
 (defn tool-time
   "Expects a single tool entity for tool time.
   Internal call done by matching to the tool wrapper,
-  which should stores any applicable result data in state
+  which should store any applicable result data in state
   and returns a string representation of result."
   [tool-call]
   (let [call-fn (get-in tool-call [:function :name])
@@ -336,6 +337,7 @@
                      "enhance_curation" (wrap-enhance-curation args)
                      "get_database_schema" (show-reference-schema (args :schema_name))
                      "ask_database" (wrap-ask-database args)
+                     "get_queryable_fields" (wrap-get-queryable-fields args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (if (map? result)
           (merge  {:tool call-fn } result)
