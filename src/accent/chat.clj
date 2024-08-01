@@ -1,7 +1,7 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [curate.dataset :refer [syn curate-dataset get-table-column-models]]
+            [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
             [database.dlvn :refer [show-reference-schema ask-database get-portal-dataset-props as-schema]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
@@ -145,9 +145,10 @@
     :parameters
     {:type "object"
      :properties
-     {:query
-      {:type "string"
-       :description "A valid SQL query."}}}}})
+     {:table_id {:type "string"
+                 :description "Table id, e.g. 'syn5464523"}
+      :query {:type "string"
+              :description "A valid SQL query."}}}}})
 
 
 (def tools
@@ -304,8 +305,9 @@
 
 (defn wrap-ask-table
   "Wrap a query to a Synapse table (NOT all of Synapse)"
-  [args]
-  "TODO")
+  [{:keys [table_id query]}]
+  (->>(query-table @syn table_id query)
+      (str)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;
@@ -338,6 +340,7 @@
                      "get_database_schema" (show-reference-schema (args :schema_name))
                      "ask_database" (wrap-ask-database args)
                      "get_queryable_fields" (wrap-get-queryable-fields args)
+                     "ask_table" (wrap-ask-table args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (if (map? result)
           (merge  {:tool call-fn } result)
