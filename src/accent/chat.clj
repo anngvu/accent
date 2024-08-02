@@ -404,7 +404,7 @@
         "stop" (peek @messages)))))
 
 
-(defn reply
+(defn ask
   "Prompting at the repl"
   [content]
   (parse-response (prompt-ai content)))
