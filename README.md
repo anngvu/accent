@@ -11,6 +11,7 @@ Research communities supported by dedicated data managers receive the benefit of
 Data managers themselves could benefit from tooling to facilitate their important and hard work of curating data, developing the data model, and facilitating data sharing in general. 
 And like with other knowledge work, including AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1].
 > Developers can also help with figuring out where AI can be inserted into workflows and how to design technology for doing that. 
+
 This is the proof-of-concept for such an application.
 
 The design considered the different responsibilities of a data manager and if/how each can be prioritized for an assisted workflow. 
