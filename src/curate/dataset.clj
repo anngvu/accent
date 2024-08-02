@@ -120,15 +120,15 @@
 
 
 (defn get-table-column-models
-  "Return just name and type of columns configured for a table"
+  "For now return just names of columns configured for a table"
   [^SynapseClient client table-id]
   (->>(.getColumnModelsForTableEntity client table-id)
-      (.toString)))
+      (mapv #(.getName %))))
 
 
 (defn get-restriction-level
   "Get an ENTITY's restriction level (OPEN|RESTRICTED_BY_TERMS_OF_USE|CONTROLLED_BY_ACT)"
-  [client subject-id]
+  [^SynapseClient client subject-id]
   (let [request (doto (RestrictionInformationRequest.)
                   (.setObjectId subject-id)
                   (.setRestrictableObjectType RestrictableObjectType/ENTITY))]
@@ -137,21 +137,21 @@
 
 (defn get-acl
   "ACL may not exist on entity directly so must always first get benefactor id."
-  [client id]
+  [^SynapseClient client id]
   (let [benefactor (.getId (.getEntityBenefactor client id))]
     (.getACL client benefactor)))
 
 
 (defn scope-files 
   "Uses an asset-view to get a list of file ids in a scope (scope~folder of contentType=dataset)."
-  [client scope asset-view]
+  [^SynapseClient client scope asset-view]
   (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and type='file'"])]
     (query-table client asset-view sql)))
 
 
 (defn scope-manifest
   "Specifically scope out id for manifest file using expected name pattern"
-  [client scope asset-view]
+  [^SynapseClient client scope asset-view]
   (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and name like 'synapse_storage_manifest%'"])]
     (->(query-table client asset-view sql)
        (:rows)
@@ -160,7 +160,7 @@
 
 (defn scope-dataset-folders
   "Uses an asset-view to get dataset folders based on contentType=dataset in a project"
-  [client project asset-view]
+  [^SynapseClient client project asset-view]
   (let [sql (str/join " " ["SELECT id,name FROM" asset-view "WHERE type='folder' and contentType='dataset' and projectId='" project "'"])]
     (->>(query-table client asset-view sql)
         (:rows))))
@@ -176,7 +176,7 @@
 
 (defn scope-dataset-folders-report
   "Wrapper for user-friendly report of scope-dataset-folders"
-  [client project asset-view]
+  [^SynapseClient client project asset-view]
   (let [result (scope-dataset-folders client project asset-view)]
     (if (count result)
       (str "Multiple potential datasets found for project. Candidates for further selection: " (format-data result))
@@ -184,14 +184,14 @@
 
 
 (defn get-file-as-creator
-  [client id]
+  [^SynapseClient client id]
   (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
         temp-url (.getFileHandleTemporaryUrl client file-handle-id)]
     (client/get temp-url)))
 
 
 (defn download-file
-  [client id output-path]
+  [^SynapseClient client id output-path]
   (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
         file-handle-assoc (doto (FileHandleAssociation.)
                (.setAssociateObjectId id)
@@ -207,7 +207,7 @@
   If the manifest is stored in an alternate location (not directly within the sccope), use `get-data-url`.
   If no manifest file stored at all, use annotations (assuming annotations were applied).
   If the manifest is stored within scope, but there are ACT-controlled restrictions."
-  [client scope asset-view]
+  [^SynapseClient client scope asset-view]
   (if-let [manifest-id (scope-manifest client scope asset-view)]
     (download-file client manifest-id (str scope "-manifest.csv"))
     "Manifest not automatically found"))
@@ -231,13 +231,13 @@
 
 (defn has-AR?
   "An entity that has a get-restriction-level result of not OPEN."
-  [client id]
+  [^SynapseClient client id]
   (not= "OPEN" (get-restriction-level client id)))
 
 
 (defn get-parent-project-id
   "Get parent project for some entity within that project."
-  [client id]
+  [^SynapseClient client id]
   (let [entity (.getEntityById client id)]
     (if (instance? Project entity)
       id
@@ -284,7 +284,7 @@
    Until there is AR bypass, ACT control takes utmost precedence and controls access even for contributors/admins.
    If there is no ACT control, *then* control is determined by checking ACL for public group download.
    This why cond checks in the order below."
-  [client id]
+  [^SynapseClient client id]
   (let [arl (get-restriction-level client id)]
     (cond
       (= "CONTROLLED_BY_ACT" arl) "CONTROLLED ACCESS"
@@ -298,7 +298,7 @@
   This is the base approach; DCCs can also plug in a unique but non-translatable method.
   Ultimately, shouldn't be expected to be initialized with perfect values and
   should be pointed out as one of the more high-priority items for human review."
-  [client scope asset-view]
+  [^SynapseClient client scope asset-view]
   (let [sql (str/join " " ["SELECT distinct createdBy, modifiedBy FROM"
                            asset-view
                            "WHERE parentId="
@@ -310,7 +310,7 @@
   ([client]
    (let [self (.getMyProfile client)]
      (str (.getFirstName self) " " (.getLastName self))))
-  ([client user]
+  ([^SynapseClient client user]
    (let [user (.getUserProfile client user)]
      (str (.getFirstName user) " " (.getLastName user)))))
 
@@ -324,8 +324,8 @@
 
 
 (defn derive-from-system
-  "Derive metadata from system metadata, e.g. createdBy, modifiedBy."
-  [client scope asset-view]
+  "Derive metadata from some default system metadata, e.g. createdBy, modifiedBy."
+  [^SynapseClient client scope asset-view]
   {:studyId (get-parent-project-id client scope)
    :creator (get-user-name client)
    :contributor (mapv #(get-user-name client %) (get-contributor client scope asset-view)) ;; alternatively, keep as user ids
@@ -370,7 +370,7 @@
 (defn curate-dataset-folder
   "Implements a deterministic first pass over a dataset folder
   to compile custom and system meta, then returning results for AI enhancement."
-  [client scope asset-view dataset-props]
+  [^SynapseClient client scope asset-view dataset-props]
   (let [m-file (get-stored-manifest client scope asset-view)
         m' (derive-from-manifest m-file dataset-props)
         s' (derive-from-system client scope asset-view)]
@@ -381,7 +381,7 @@
   "Currently what's expected in workflow is limited to marked folders,
   even if conceptually it is valid for the input to be a single file,
   a single table, an entire project with various entities, etc."
-  [client scope asset-view dataset-props]
+  [^SynapseClient client scope asset-view dataset-props]
    (let [entity (.getEntityById client scope)]
      (cond
        (instance? Project entity) { :type :redirect :result (scope-dataset-folders-report client scope asset-view) }
