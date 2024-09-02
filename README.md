@@ -2,7 +2,8 @@
 
 > [!WARNING]  
 > This is a **prototype** application.
-> Development is still working mitigating risks of using generative AI.   
+> Development is still working mitigating risks of using generative AI. 
+Our current target users are Sage staff or other data professionals, not (yet) general Synapse users.   
 
 
 ### Motivation
@@ -29,7 +30,19 @@ The idea is to work out the "wrapper" interface into a usable and productive wor
 
 ### Usage
 
-To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. Unlike interacting with the LLM in the default interface, this is basically interaction with additional configuration, involving specific prompt templates and tools use access.
+To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. Unlike interacting with the LLM in the default interface, this is basically interaction with additional infra and guardrails that specific prompt templates and tools use access.
+
+#### AI Providers
+
+The app integrates two providers, Anthropic and OpenAI. In the same conversation, it is possible to switch between models from the same provider, though not between different providers, e.g. switching from ChatGPT-3.5 to ChatGPT-4o is fine, but not from ChatGTP-3.5 to Claude Sonnet-3.5. However, just because the switching feature exists does not mean it is expected for the user to try manually try switching too much between models for different tasks. For both providers, the default is to use a model on the smarter end. Trying to reduce costs by switching to a cheaper model for some tasks is likely premature optimization at this early stage.
+
+- OpenAI
+  - To use, must have `OPENAI_API_KEY` in env/config.
+  - The default is the ChatGPT-4o model.
+- Anthropic
+  - To use, must have `ANTHROPIC_API_KEY` in env/config.
+  - The default is Claude Sonnet 3.5.
+
 
 #### Structured modes
 
@@ -39,30 +52,37 @@ Here is how Responsibilities map to structured modes:
 - **Data model exploration and development**
 schematic JSON-LD models** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
 
-Planned functionality have been scoped/mapped as below for specific versions:
+Planned functionality have been scoped/mapped as below for specific versions. 
+(This roadmap does change with feedback and outside suggestions.)
 
 - **v0.01** - Undifferentiated infrastructure  
     - Basic state management for user/api tokens, model, messages
-    - Basic working chat through console (see v0.4 for interface enhancements)
-    - Simple function to save chats (for users: history for reference / for development: for testing, user research and analysis)
+    - Integrate OpenAI APIs for selected ChatGPT models
+    - Basic working chat through console (see POC roadmap where for later interface enhancements beyond console)
+    - Simple function to save chats (Use case for this: For users, capture history for reference. For developers, help with testing and analysis)
     - Working project configuration and build scripts
-- **v0.1** - First assisted workflow for dataset curation for NF use case, under the umbrella of Responsibility 1.
+- **v0.1** - First assisted workflow for dataset curation for **NF** use case, under the umbrella of Responsibility 1.
     - Automatically pull in DCC configurations at startup -- we should know to use consistent DCC settings, and not have to specify them manually either
     - Add DCC configuration to state management
-    - Implement low-level Synapse APIs needed for this curation
-    - Basic flow control and prompts related to this workflow
+    - Implement integration of Synapse APIs needed for this curation workflow (querying and download)
+    - Define basic prompts and wrappers for Synapse querying and curation workflow
     - Working `curate_dataset` function call
 - **v0.2** - MVP for data model exploration and comparison for data models in the schematic JSON-LD with a chat interface (RAG), relevant to Responsibility 2.
-    - ETL of data model graphs at startup
-    - Local database instantiation and management
-    - Appropriate prompts for RAG
+    - Integrate a suitable local database solution
+    - Implement ETL of data model graphs at startup
+    - Implement database schemas, instantiation and management
+    - Define some basic canned queries for model usage/training
+    - Define appropriate prompts and wrapper functionality for RAG
     - Working `ask_database` function call
-- **v0.3** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
-    - Appropriate prompts for viz
-    - Example `visualize` function call for **data model**
-    - Example `visualize` function call for **dataset**
-- **v0.4** - Implement upgraded interface as alternative to the basic console: TUI or simple web UI.
-
+- **v0.3** - Enable another AI provider (Anthropic) for flexibility and potential benchmarking applications. 
+    - Integrate Anthropic Claude models.
+    - Parity in terms of tool use (function calling).
+- **v0.4** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
+    - Integrate a basic package/solution for viz
+    - Appropriate prompts and wrapper functionality for viz
+    - Working example `visualize` function call for **data model**
+    - Working example `visualize` function call for **dataset**
+- **v0.5** - Implement upgraded interface as alternative to the basic console: TUI or simple web UI.
 
 
 Nothing more is planned until after the Evaluation (below).
