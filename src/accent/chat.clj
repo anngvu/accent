@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
-            [database.dlvn :refer [show-reference-schema ask-database get-portal-dataset-props as-schema]]
+            [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
             [babashka.http-client :as client]
             ;;[bblgum.core :as b]
             [cheshire.core :as json]
@@ -11,13 +11,18 @@
             [com.brunobonacci.mulog :as mu]))
 
 
+(defn system-prompt
+  []
+ (str "You are a helpful data management assistant for a data coordinating center (DCC). "
+                  "Unless specified otherwise, your DCC is '" (@u :dcc) "' and your asset view has id " (@u :asset-view) "."
+                  "You help users with searching and curating data on Synapse "
+                  "and working with dcc-specific data dictionaries and configurations."))
+
 (defn init-prompt
   []
   [{:role    "system"
-    :content (str "You are a helpful data management assistant for a data coordinating center (DCC). "
-                  "Unless specified otherwise, your DCC is '" (@u :dcc) "' and your asset view has id " (@u :asset-view) "."
-                  "You help users with searching and curating data on Synapse "
-                  "and working with dcc-specific data dictionaries and configurations.")}])
+    :content (system-prompt)}])
+
 
 (defonce messages (atom nil))
 
@@ -29,19 +34,52 @@
     (mu/log ::response :message last-response)))
 
 
+(defn unsend!
+  []
+  (swap! messages #(if (seq %) (pop %) %)))
+
 ;; MODELS
 
-(def gpt-models
-  "WIP: Recommendation for models and summary of behavioral differences."
-  ["gpt-3.5-turbo"
-   "gpt-4o"
-   "gpt-4"
-   "gpt-4-turbo-preview"])
+(def openai-models
+  "https://platform.openai.com/docs/models"
+  {:default "gpt-4o"
+   :models {"gpt-3.5-turbo" {:label "GPT-3.5 Turbo"
+                             :context 16385}
+            "gpt-4o" {:label "GPT-4o"
+                      :context 128000}
+            "gpt-4" {:label "GPT-4"
+                     :context 128000}
+            "gpt-4-turbo-preview" {:label "GPT-4 Turbo"
+                                   :context 128000}}})
 
+(def anthropic-models
+  {:default "claude-3-5-sonnet-20240620"
+   :models {"claude-3-5-sonnet-20240620" {:label "Claude 3.5 Sonnet"
+                                          :context 200000}
+            "claude-3-sonnet-20240229" {:label "Claude 3 Sonnet"
+                                        :context 200000}}})
 
-(defn switch-gpt!
+(defn switch-model!
   [model]
-  (swap! u assoc :model model))
+  (cond
+    (and (get-in anthropic-models [:models model]) (@u :aak))
+    (do
+      (swap! u assoc :model model)
+      (swap! u assoc :model-provider "Anthropic")
+      (println "Model switched to" (get-in anthropic-models [:models model :label])))
+
+    (and (get-in openai-models [:models model]) (@u :oak))
+    (do
+      (swap! u assoc :model model)
+      (swap! u assoc :model-provider "OpenAI")
+      (println "Model switched to" (get-in openai-models [:models model :label])))
+
+    (or (get-in anthropic-models [:models model])
+        (get-in openai-models [:models model]))
+    (println "You cannot switch to this model provider because API creds were not set for this provider.")
+
+    :else
+    (println "Invalid model. Please choose from the available models.")))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; TOOl DEFINITIONS
@@ -51,7 +89,7 @@
   {:type "function"
    :function
    {:name "curate_dataset"
-    :description "Use this to help user curate a dataset given a scope and, optionally, a manifest."
+    :description "Use this to help user curate a dataset on the Synapse platform given a scope id and, optionally, a manifest id."
     :parameters
     {:type "object"
      :properties
@@ -66,12 +104,12 @@
     :required ["scope_id"] }})
 
 
-(def get_database_schema_spec
+(def get_knowledgegraph_schema_spec
   {:type "function"
    :function
-   {:name "get_database_schema"
-    :description (str "Use to retrieve the relevant schema reference to help construct a correct query for the user question."
-                      "Then use ask_database with the constructed query.")
+   {:name "get_knowledgegraph_schema"
+    :description (str "Retrieve the knowledgegraph schemas in order to help construct a correct query for the user question."
+                      "Then use ask_knowledgegraph with the constructed query.")
     :parameters
     {:type "object"
      :properties
@@ -83,12 +121,12 @@
      }})
 
 
-(def ask_database_spec
+(def ask_knowledgegraph_spec
   {:type "function"
    :function
-   {:name "ask_database"
-    :description (str "Use this to answer user questions about the different data coordinating center "
-                      "data dictionaries and entities. "
+   {:name "ask_knowledgegraph"
+    :description (str "Query knowledgegraph on the user's behalf to answer questions about different centers' reference data models, app configurations, and assets."
+                      "Always base queries on the knowledgegraph schema reference returned by get_knowledgegraph_schema. "
                       "Input should be a valid Datomic query.")
     :parameters
     {:type "object"
@@ -96,7 +134,7 @@
      {:query
       {:type "string"
        :description (str "Datomic query extracting info to answer the user's question."
-                         "Datomic query should be written and returned as plain text using the database schema.")}}
+                         "Datomic query should be written as plain text using the database schema.")}}
      :required ["query"]}}})
 
 
@@ -151,26 +189,47 @@
               :description "A valid SQL query."}}}}})
 
 
+(defn convert-tools-for-anthropic
+  "Convert OpenAI tools schema to Anthropic tools schema"
+  [openai-tools]
+  (mapv (fn [tool]
+          {:name (get-in tool [:function :name])
+           :description (get-in tool [:function :description])
+           :input_schema (-> tool
+                             (get-in [:function :parameters]))})
+        openai-tools))
+
 (def tools
   [curate_dataset_spec
-   get_database_schema_spec
-   ask_database_spec
+   get_knowledgegraph_schema_spec
+   ask_knowledgegraph_spec
    enhance_curation_spec
    get_queryable_fields_spec
    ask_table_spec])
 
+(def tools-for-anthropic (convert-tools-for-anthropic tools))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; BASIC CHAT OPS
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn new-chat!
+
+(defn new-chat-anthropic!
+  []
+  (reset! messages []))
+
+(defn new-chat-openai!
   "New chat / let's start over."
   []
   (reset! messages (init-prompt)))
 
 
-(defn request-completions [body]
+(defmulti new-chat! (fn [] (@u :model-provider)))
+(defmethod new-chat! "Anthropic" [] (new-chat-anthropic!))
+(defmethod new-chat! "OpenAI" [] (new-chat-openai!))
+
+(defn request-openai-completions 
+  [body]
   (try
     (client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
@@ -182,6 +241,20 @@
        :message (str (.getMessage e))})))
 
 
+(defn request-anthropic-messages 
+  [body]
+  (try
+    (client/post "https://api.anthropic.com/v1/messages"
+                 {:headers {"Content-Type" "application/json"
+                            "x-api-key" (@u :aak)
+                            "anthropic-version" "2023-06-01"}
+                  :body    (json/generate-string body)
+                  :timeout 25000}) ; 25 seconds timeout
+    (catch Exception e
+      {:error true 
+       :message (str (.getMessage e))})))
+
+
 (defn as-user-message
   "Structure plain text content"
   [content]
@@ -189,22 +262,45 @@
    :content content})
 
 
-(defn prompt-ai
-  "Send prompt to ai."
+(defn prompt-ai-openai
+  "Send prompt to OpenAI AI."
   [input & [tool-choice]]
   (let [message (if (string? input) (as-user-message input) input)]
     (swap! messages conj message)
     (let [response (->
       (cond->
-         {:model   (@u :model)
+         {:model (@u :model)
           :messages @messages
           :tools tools
           :parallel_tool_calls false}
        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
-     (request-completions))]
+     (request-openai-completions))]
       (if (:error response)
         {:error true
          :message (:message response)}
+        response))))
+
+
+(defn prompt-ai-anthropic
+  "Send prompt to Anthropic AI."
+  [input & [tool-choice]]
+  (let [message (if (string? input) (as-user-message input) input)]
+    (swap! messages conj message)
+    (let [response (->
+                    (cond->
+                     {:model (@u :model)
+                      :tools tools-for-anthropic
+                      :max_tokens 1000
+                      :system (system-prompt)
+                      :messages @messages
+                      :temperature 0
+                      :stream false}
+                      tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
+                    (request-anthropic-messages))]
+      (if (:error response)
+        {:error true
+         :message (get-in response [:error :message])
+         :data response}
         response))))
 
 
@@ -228,8 +324,8 @@
 
 (defn save-chat-offer
   []
-  (print (str "If you would like to save the chat data before the program exits, "
-                "please type 'Yes' exactly."))
+  (print (str "If you would like to save the chat data before the program exits, " 
+              "please type 'Yes' exactly."))
   (println)
   (flush)
   (when (= "Yes" (read-line))
@@ -285,9 +381,9 @@
   "Successful update.")
 
 
-(defn wrap-ask-database
+(defn wrap-ask-knowledgegraph
   [args]
-  (->>(ask-database (args :query))
+  (->>(ask-knowledgegraph (args :query))
       (mapcat identity)
       (vec)
       (str/join ", ")))
@@ -318,10 +414,10 @@
   "Applies logic for chaining certain tool calls. Input should be result from `tool-time`
   Currently, enhance_curation should be forced after curate_dataset only under certain return types.
   TODO: make more elegant since potentially a lot more will be included."
-  [tc-result]
-  (if (and (= "curate_dataset" (tc-result :tool)) (= :success (tc-result :type)))
-    (assoc tc-result :next-tool-call "enhance_curation")
-    tc-result))
+  [tool-result]
+  (if (and (= "curate_dataset" (tool-result :tool)) (= :success (tool-result :type)))
+    (assoc tool-result :next-tool-call "enhance_curation")
+    tool-result))
 
 
 (defn tool-time
@@ -337,8 +433,8 @@
       (let [result (case call-fn
                      "curate_dataset" (wrap-curate-dataset args)
                      "enhance_curation" (wrap-enhance-curation args)
-                     "get_database_schema" (show-reference-schema (args :schema_name))
-                     "ask_database" (wrap-ask-database args)
+                     "get_knowledgegraph_schema" (show-reference-schema (args :schema_name))
+                     "ask_knowledgegraph" (wrap-ask-knowledgegraph args)
                      "get_queryable_fields" (wrap-get-queryable-fields args)
                      "ask_table" (wrap-ask-table args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
@@ -348,7 +444,18 @@
       (catch Exception e
         {:tool call-fn
          :result (.getMessage e)
+         :type :error
          :error true}))))
+
+
+(defn tool-time-anthropic
+  "Convert Anthropic tool_use message to resemble OpenAI's tool_call and process with tool-time"
+  [tool-use]
+  (let [tool-call {:id (:id tool-use)
+                        :type "function"
+                        :function {:name (:name tool-use)
+                                   :arguments (json/generate-string (:input tool-use))}}]
+     (tool-time tool-call)))
 
 
 (defn as-last-message
@@ -356,11 +463,12 @@
   (->(assoc message :last true)
      (assoc :total-tokens (get-in response [:usage :total_tokens]))))
 
-(declare parse-response)
+(declare parse-openai-response)
+(declare parse-anthropic-response)
 
-(defn add-tool-result
+(defn add-tool-result-for-openai
   "Intercept tool calls (selecting first of incoming tool calls, ignores parallel calls).
-  Add the tool result, whether good or error, so AI can handle it."
+   Does tool call and adds result to response, whether good or error, so AI can handle it."
   [tool-calls]
   (let [tool-call (first tool-calls)
         result (with-next-tool-call (tool-time tool-call))
@@ -370,23 +478,37 @@
              :content (result :result)}]
     ; if error key present, content is an error message
     ; and AI will likely retry with another tool call
-    (parse-response (prompt-ai msg (result :next-tool-call)))))
+    (parse-openai-response (prompt-ai-openai msg (result :next-tool-call)))))
 
 
-(defn check-finish-reason
-  "*Forced* tool calls actually have finish reason 'stop' when one might expect
-  'tool_calls' to be the reason (as with unforced tool calls).
-  This checks and outputs finish reason more consistently."
+(defn add-tool-result-for-anthropic
+  "Handle Anthropic's version of tool calls, returning tool result in Anthropic-specific message structure. 
+   Anthropic does not have parallel tool calls."
+  [tool-use]
+  (let [result (with-next-tool-call (tool-time-anthropic tool-use))
+        msg {:role "user"
+             :content
+             [{:type "tool_result"
+               :tool_use_id (tool-use :id)
+               :content (result :result)}]}]
+    (parse-anthropic-response (prompt-ai-anthropic msg (result :next-tool-call)))))
+
+
+(defn check-openai-finish-reason
+  "Inconsistency in the OpenAI response necessitates this check. 
+   *Forced* tool calls actually have finish reason 'stop' when one might expect
+  'tool_calls' to be the reason (as with regular unforced tool calls)."
   [resp]
   (let [stated (get-in resp [:choices 0 :finish_reason])
         tool_calls (get-in resp [:choices 0 :message :tool_calls])]
     (if tool_calls "tool_calls" stated)))
 
 
-(defn parse-response
-  "Add response to messages and return other internal representation if applicable.
-  Note that everything except tool_calls returns right away;
-  tool_calls can enter a bit of a loop that takes longer to resolve."
+(defn parse-openai-response
+  "Encodes logic for reacting to the AI reply. 
+   Everything except tool_calls, which has a loop, returns right away. 
+   Internally appends to messages, while returning the last message 
+   with possible modifications for later logic (see as-last-message)."
   [resp]
   (if (:error resp)
     (do
@@ -395,22 +517,66 @@
        :content (str "An error occurred: " (:message resp))})
     (let [resp       (json/parse-string (:body resp) true)
           msg (get-in resp [:choices 0 :message])
-          finish-reason (check-finish-reason resp)]
+          finish-reason (check-openai-finish-reason resp)]
       (swap! messages conj msg)
       (case finish-reason
         "length" (as-last-message (peek @messages) resp)
-        "tool_calls" (add-tool-result (msg :tool_calls))
-        "content_filter" (peek @messages) ;; TODO: handle more specifically
+        "tool_calls" (add-tool-result-for-openai (msg :tool_calls))
+        "content_filter" (peek @messages)
         "stop" (peek @messages)))))
 
 
-(defn ask
-  "Prompting at the repl"
+
+(defn get-anthropic-text
+  "Get text content for display"
   [content]
-  (parse-response (prompt-ai content)))
+  (->(filter #(= "text" (:type %)) content)
+     (first)
+     (:text)))
+
+(defn get-anthropic-tool-use
+  [content]
+  (->(filter #(= "tool_use" (:type %)) content)
+     (first)))
+
+(defn parse-anthropic-response 
+  [resp]
+  (if (:error resp)
+    (do
+      (println "Error occurred:" (:error resp))
+      {:role "system"
+       :content (str "An error occurred: " (:error resp))})
+    (let [resp (json/parse-string (:body resp) true)
+          content (:content resp)
+          msg {:role "assistant" :content content}
+          stop-reason (:stop_reason resp)]
+      (swap! messages conj msg)
+      (case stop-reason
+        "max_tokens" (as-last-message (peek @messages) resp)
+        "tool_use" (add-tool-result-for-anthropic (get-anthropic-tool-use content))
+        "stop_sequence" (peek @messages)
+        "end_turn" (peek @messages)))))
+
+
+(defmulti parse-response (fn [_] (@u :model-provider)))
+(defmethod parse-response "Anthropic" [resp] (parse-anthropic-response resp))
+(defmethod parse-response "OpenAI" [resp] (parse-openai-response resp))
+
+(defmulti prompt-ai (fn [_] (@u :model-provider)))
+(defmethod prompt-ai "Anthropic" [content] (prompt-ai-anthropic content))
+(defmethod prompt-ai "OpenAI" [content] (prompt-ai-openai content))
+
+(defn ask
+  "Prompting at the console. 
+   An answer is returned from parse-*-response."
+  [content]
+  (-> content
+      prompt-ai
+      parse-response))
+
 
 (defn prompt-shots
-  "Create prompting environment allowing some number of shots to get a good result,
+  "EXPERIMENTAL. Create prompting environment allowing some number of shots to get a good result,
   e.g. contexts known as 'one-shot' or 'few-shot'.
   Allows adapting prompt environment given that success for different prompts can vary,
   e.g. prompts for working database query can be harder to get right
@@ -424,23 +590,18 @@
           (recur (inc shots)))))))
 
 
-(def one-shot-tool-call
-  "In practice, number of shots given should vary by tool."
-  (prompt-shots add-tool-result 1))
-
-
-
 ;;;;;;;;;;;;;;;;;
 ;; CHAT - MAIN
 ;;;;;;;;;;;;;;;;;
 
 
 (defn chat
+  "Main chat loop."
   []
   (print "New message:")
   (flush)
   (loop [prompt (read-line)]
-    (let [ai-reply (parse-response (prompt-ai prompt))]
+    (let [ai-reply (ask prompt)]
       (if (:final ai-reply)
         (do
           (print-reply "accent" (ai-reply :content))

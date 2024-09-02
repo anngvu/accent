@@ -13,29 +13,28 @@
   (atom
    {:sat (System/getenv "SYNAPSE_AUTH_TOKEN")
     :oak (System/getenv "OPENAI_API_KEY")
+    :aak (System/getenv "ANTHROPIC_API_KEY")
     :dcc nil
     :asset-view nil
     :profile nil
+    :model-provider "Anthropic" ;; or OpenAI
     :model "gpt-4o"
     :ui :default}))
 
 
-(defn set-syn!
-  "Use for switching between Synapse accounts."
-  [synapse-auth-token]
-  (do
-    (new-syn synapse-auth-token)
-    (swap! u assoc :sat synapse-auth-token)
-    true))
+(add-watch u :syn-client-watcher 
+           (fn [_ _ old-state new-state]
+             (when (not= (:sat old-state) (:sat new-state))
+               (new-syn (:sat new-state)))))
 
 
 (defn set-api-key!
-  "Use for switching between OpenAI API keys, as there can be org/personal/project-specific keys.
-  TODO: Check whether valid by making a call to OpenAI service."
-  [oak]
-  (do
-    (swap! u assoc :oak oak)
-    true))
+  "Sey API keys for specific model providers (OpenAI or Anthropic)." 
+  [provider key] 
+  (let [key-keyword (if (= provider "OpenAI") :oak :aak)]
+    (swap! u assoc :model-provider provider)
+    (swap! u assoc key-keyword key)
+     true))
 
 
 (defn token-input-def
@@ -49,40 +48,95 @@
 ;;  [placeholder]
 ;;  (s/trim (:result (b/gum :input :password true :placeholder placeholder))))
 
+(declare set-syn-token!)
 
 (defn prompt-for-sat
   "Prompt for Synapse authentication token."
   []
   (let [sat (token-input-def "Synapse auth token: ")]
-    (if (set-syn! sat)
+    (when (set-syn-token! sat)
       (println "Synapse set."))))
+
+
+(defn set-syn-token!
+  "Sets Synapse credentials from config, env, or prompts for input if not provided."
+  [{:keys [synapse-auth-token]}]
+  (cond
+    synapse-auth-token
+    (swap! u assoc :sat synapse-auth-token)
+
+    (@u :sat)
+    true
+
+    :else
+    (do
+      (println "Synapse credentials not detected. Please provide.")
+      (prompt-for-sat))))
+
+
+(defn choose-model-provider
+  "Prompt user to choose between OpenAI and Anthropic."
+  []
+  (println "Please choose which model provider to use:")
+  (loop []
+    (println "Enter 'OpenAI' or 'Anthropic':")
+    (let [input (read-line)]
+      (if (contains? #{"OpenAI" "Anthropic"} input)
+        input
+        (do
+          (println "Invalid provider choice. Please try again.")
+          (recur))))))
 
 
 (defn prompt-for-api-key
   []
-  (let [api-key (token-input-def "OpenAI API key: ")]
-    (if (set-api-key! api-key)
-      true
-      (println "No OpenAI API key. Exiting."))))
+ (let [provider (choose-model-provider) 
+       api-key (token-input-def (str provider " API key: "))]
+    (if (set-api-key! provider api-key)
+      (do
+        (println (str provider " API key set successfully."))
+        true)
+      (do
+        (println "Failed to set API key. Please try again.")
+        false))))
 
 
-(defn check-syn-creds []
-  (if-let [sat (@u :sat)]
-    (set-syn! sat)
-    (do
-     (println "Synapse credentials not detected. Please provide.")
-     (prompt-for-sat))))
+(defn set-model-provider! 
+  "Checks and sets up the model provider based on available API keys and config.
+  Takes a config map containing :openai-api-key, :anthropic-api-key, :init-model-provider.
+  Prioritizes config values over existing @u values.
+  Sets the model provider based on :model-provider if present, otherwise prompts for choice if both services are available."
+  [{:keys [openai-api-key anthropic-api-key init-model-provider] :as config}]
+  (when openai-api-key
+    (swap! u assoc :oak openai-api-key))
+  (when anthropic-api-key
+    (swap! u assoc :aak anthropic-api-key))
+  (let [has-oak (@u :oak)
+        has-aak (@u :aak)] 
+    (cond 
+      (and has-oak has-aak) 
+      (do 
+        (println "You have API access to both OpenAI and Anthropic services.") 
+        (if init-model-provider 
+          (do 
+            (swap! u assoc :model-provider init-model-provider) 
+            (println "Model provider set to" init-model-provider))
+          (let [chosen-provider (choose-model-provider)] 
+            (swap! u assoc :model-provider chosen-provider) 
+            (println "Model provider set to" chosen-provider))))
+      has-oak 
+      (println "You have an OpenAI API key and can use OpenAI services.")
+      
+      has-aak 
+      (println "You have an Anthropic API key and can use Anthropic services.")
+      
+      :else 
+      (do 
+        (println "No API keys detected. Please provide an API key for either OpenAI or Anthropic.") 
+        (prompt-for-api-key)))))
 
 
-(defn check-openai-creds
-  "TODO: Handle if user has no credits left."
-  []
-  (when-not (@u :oak)
-    (println "OpenAI API key not detected. Please provide.")
-    (prompt-for-api-key)))
-
-
-(defn choose-dcc-def
+(defn choose-dcc-def!
   "User chooses dcc name, which is set in state along with asset view, if found."
   [options]
   (println "Please choose your DCC by entering the corresponding number:")
@@ -107,12 +161,12 @@
 (defn prompt-for-dcc
   []
   (let [options (run-query @conn unique-dccs)]
-  (choose-dcc-def (mapv first options))))
+  (choose-dcc-def! (mapv first options))))
 
 
 (def fallback-config
   "Default configuration"
-  {:tools true
+  {:tools false
    :db-env :prod})
 
 
@@ -132,11 +186,11 @@
   (let [config (read-config "accent.edn")
         tools-enabled (:tools config)
         db-env (:db-env config)]
-    (check-openai-creds)
+    (set-model-provider! config)
     (when tools-enabled
-      (check-syn-creds)
+      (set-syn-token! config)
       (try
-        (println "Attempting to load latest data models and configurations...")
+        (println "Attempting to pull the *latest* data models and configurations...")
         (init-db! {:env db-env})
         (println "Knowledgebase created!")
         (prompt-for-dcc)

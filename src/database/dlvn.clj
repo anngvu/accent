@@ -461,7 +461,7 @@
    (d/q q (d/db conn) variable)))
 
 
-(defn ask-database
+(defn ask-knowledgegraph
   "Tool version of run-query where conn is not explicitly provided,
   query is a string instead of data structure."
   [query-string]
