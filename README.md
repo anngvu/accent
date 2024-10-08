@@ -30,7 +30,7 @@ The idea is to work out the "wrapper" interface into a usable and productive wor
 
 ### Usage
 
-To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. Unlike interacting with the LLM in the default interface, this is basically interaction with additional infra and guardrails that specific prompt templates and tools use access.
+To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. Unlike interacting with the LLM in the default interface from a model provider, we add new infra/integrations that make some things easier (e.g. prompt templates, tools use, and access to Synapse APIs) while at the same time trying to put in some guardrails.
 
 #### AI Providers
 
