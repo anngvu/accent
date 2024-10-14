@@ -17,7 +17,7 @@
     :dcc nil
     :asset-view nil
     :profile nil
-    :model-provider "Anthropic" ;; or OpenAI
+    :model-provider "OpenAI" ;; or Anthropic
     :model "gpt-4o"
     :ui :default}))
 
