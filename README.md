@@ -82,7 +82,12 @@ Feel free to propose a new feature or fast-tracking an existing one.
     - Parity with console interface in flow.
     - Set up local server for backend.
     - Implement streaming for frontend.
-- **v0.5** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
+- **v0.5** - Curation of external sources into structured format that can be stored into Synapse.
+    - Functionality to create annotated data (as JSON) given:
+      -  (required) Many web pages and JSON schema. Assess target web page and let user know when one is not feasible. 
+      -  (maybe) A PDF and JSON schema.
+    - Storage into Synapse. (Note: data *does not always* have to be put into Synapse, so this is decoupled.)
+- **v0.6** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
     - Integrate a basic package/solution for viz
     - Appropriate prompts and wrapper functionality for viz
     - Working example `visualize` function call for **data model**
