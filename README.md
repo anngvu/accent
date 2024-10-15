@@ -53,7 +53,8 @@ Here is how Responsibilities map to structured modes:
 schematic JSON-LD models** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
 
 Planned functionality have been scoped/mapped as below for specific versions. 
-(This roadmap does change with feedback and outside suggestions.)
+**This roadmap adapts to the feedback and interest received.** 
+Feel free to propose a new feature or fast-tracking an existing one. 
 
 - **v0.01** - Undifferentiated infrastructure  
     - Basic state management for user/api tokens, model, messages
@@ -77,12 +78,20 @@ Planned functionality have been scoped/mapped as below for specific versions.
 - **v0.3** - Enable another AI provider (Anthropic) for flexibility and potential benchmarking applications. 
     - Integrate Anthropic Claude models.
     - Parity in terms of tool use (function calling).
-- **v0.4** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
+- **v0.4** - Implement upgraded UI / UX as an alternative to the basic console (simple web UI).
+    - Parity with console interface in flow.
+    - Set up local server for backend.
+    - Implement streaming for frontend.
+- **v0.5** - Curation of external sources into structured format that can be stored into Synapse.
+    - Functionality to create annotated data (as JSON) given:
+      -  (required) Many web pages and JSON schema. Assess target web page and let user know when one is not feasible. 
+      -  (maybe) A PDF and JSON schema.
+    - Storage into Synapse. (Note: data *does not always* have to be put into Synapse, so this is decoupled.)
+- **v0.6** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
     - Integrate a basic package/solution for viz
     - Appropriate prompts and wrapper functionality for viz
     - Working example `visualize` function call for **data model**
     - Working example `visualize` function call for **dataset**
-- **v0.5** - Implement upgraded interface as alternative to the basic console: TUI or simple web UI.
 
 
 Nothing more is planned until after the Evaluation (below).
