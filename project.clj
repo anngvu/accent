@@ -10,7 +10,11 @@
                  [org.clojars.huahaiy/datalevin-native "0.9.1"]
                  [org.babashka/http-client "0.4.19"]
                  [org.sagebionetworks/synapseJavaClient "500.0"]
-                 [com.brunobonacci/mulog "0.9.0"]]
+                 [http-kit "2.5.3"]
+                 [compojure "1.6.2"]
+                 [ring/ring-core "1.9.4"]
+                 [com.brunobonacci/mulog "0.9.0"]
+                 [hiccup "2.0.0-RC3"]]
   :jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
   :main ^:skip-aot accent.chat
