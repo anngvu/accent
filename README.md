@@ -8,19 +8,19 @@ Our current target users are Sage staff or other data professionals, not (yet) g
 
 ### Motivation
 
-Research communities supported by dedicated data managers receive the benefit of having data packaged and disseminated optimally.  
+Research communities supported by dedicated data managers receive the benefit of having data packaged and disseminated optimally. 
 Data managers themselves could benefit from tooling to facilitate their important and hard work of curating data, developing the data model, and facilitating data sharing in general. 
-And like with other knowledge work, including AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1].
+And like with other knowledge work, including AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1]. 
 > Developers can also help with figuring out where AI can be inserted into workflows and how to design technology for doing that. 
 
-This is the proof-of-concept for such an application.
+This is the proof-of-concept for such an application. 
 
 The design considered the different responsibilities of a data manager and if/how each can be prioritized for an assisted workflow. 
-There are many responsibilities[^2][^3], but the general list can be refined and ranked based on the work at Sage:
-1. Data curation -- create, organize, QC, and publish data assets to the best advantage.
-2. Develop standards and data models.
-3. Maintain data management plans and SOPs.
-4. Facilitate data analysis/reuse and reporting for stakeholders, regulatory authorities, etc.
+There are many responsibilities[^2][^3], but the general list can be refined and ranked based on the work at Sage: 
+1. Data curation -- create, organize, QC, and publish data assets to the best advantage. 
+2. Develop standards and data models. 
+3. Maintain data management plans and SOPs. 
+4. Facilitate data analysis/reuse and reporting for stakeholders, regulatory authorities, etc. 
 5. Oversee the integration of apps/new technologies and initiatives into data standards and structures. 
 
 
@@ -30,11 +30,20 @@ The idea is to work out the "wrapper" interface into a usable and productive wor
 
 ### Usage
 
-To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. Unlike interacting with the LLM in the default interface from a model provider, we add new infra/integrations that make some things easier (e.g. prompt templates, tools use, and access to Synapse APIs) while at the same time trying to put in some guardrails.
+Until this is released as a .jar, you do need some Clojure tooling. 
+
+- Clone this repo. 
+- Make sure [Leiningen](https://leiningen.org/) (the easiest way to use Clojure) is installed. 
+- `lein run -m accent.app`
+- Go to http://localhost:3000
+
+To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. 
+Unlike interacting with the LLM in the default interface, this is basically interaction with additional infra and guardrails that specific prompt templates and tools use access.
 
 #### AI Providers
 
-The app integrates two providers, Anthropic and OpenAI. In the same conversation, it is possible to switch between models from the same provider, though not between different providers, e.g. switching from ChatGPT-3.5 to ChatGPT-4o is fine, but not from ChatGTP-3.5 to Claude Sonnet-3.5. However, just because the switching feature exists does not mean it is expected for the user to try manually try switching too much between models for different tasks. For both providers, the default is to use a model on the smarter end. Trying to reduce costs by switching to a cheaper model for some tasks is likely premature optimization at this early stage.
+The app integrates two providers, Anthropic and OpenAI. In the same conversation, it is possible to switch between models from the same provider, though not between different providers, e.g. switching from ChatGPT-3.5 to ChatGPT-4o is fine, but not from ChatGTP-3.5 to Claude Sonnet-3.5. 
+However, just because the switching feature exists does not mean it is expected for the user to try manually try switching too much between models for different tasks. For both providers, the default is to use a model on the smarter end. Trying to reduce costs by switching to a cheaper model for some tasks is likely premature optimization at this early stage.
 
 - OpenAI
   - To use, must have `OPENAI_API_KEY` in env/config.
