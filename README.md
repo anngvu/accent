@@ -118,7 +118,6 @@ We would have to ask a user, "How would you compare using this versus trying to 
 
 There is also workflow-specific research needed. To be continued...
 
----
 
 [^1]: https://mitsloan.mit.edu/ideas-made-to-matter/how-generative-ai-can-boost-highly-skilled-workers-productivity
 [^2]: https://www.indeed.com/hire/job-description/data-manager#toc-jumpto-1
