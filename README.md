@@ -33,7 +33,7 @@ The idea is to work out the "wrapper" interface into a usable and productive wor
 Until this is released as a .jar, you do need some Clojure tooling. 
 
 - Clone this repo. 
-- Make sure [Leiningen](https://leiningen.org/) (the easiest way to use Clojure) is installed.
+- Install [Leiningen](https://leiningen.org/) (the easiest way to use Clojure).
 - Run `lein deps` to install dependencies.
 - Create a config file called `accent.edn` to specify things like [AI providers](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#ai-providers).
 
