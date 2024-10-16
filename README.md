@@ -40,7 +40,7 @@ Until this is released as a .jar, you do need some Clojure tooling.
 #### Choose your UI
 
 > [!NOTE]  
-> There are two ways to interface, terminal vs a web UI. Currently, there are some tradeoffs. The web UI will have some features that the terminal will not, such as showing figures. On the other hand, web UI only currently works with OpenAI.
+> Two interfaces are offered, terminal vs a web UI. Currently, there are some tradeoffs. The web UI will have some features that the terminal will not, such as showing figures. On the other hand, web UI only works with OpenAI for now.
 
 For the terminal:
 - `lein run -m accent.chat`
