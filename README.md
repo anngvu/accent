@@ -33,7 +33,18 @@ The idea is to work out the "wrapper" interface into a usable and productive wor
 Until this is released as a .jar, you do need some Clojure tooling. 
 
 - Clone this repo. 
-- Make sure [Leiningen](https://leiningen.org/) (the easiest way to use Clojure) is installed. 
+- Make sure [Leiningen](https://leiningen.org/) (the easiest way to use Clojure) is installed.
+- Run `lein deps` to install dependencies.
+- Create a config file called `accent.edn`.
+
+#### Choose your UI
+
+There are two ways to interface, terminal vs a web UI. Currently, there are some tradeoffs. The web UI will have some features that the terminal will not, such as showing figures. But web UI only currently only works with OpenAI.
+
+For the terminal:
+- `lein run -m accent.chat`
+
+For the web UI:
 - `lein run -m accent.app`
 - Go to http://localhost:3000
 
