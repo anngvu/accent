@@ -1,7 +1,6 @@
 (ns accent.state
   (:gen-class)
   (:require [babashka.http-client :as client]
-            ;;[bblgum.core :as b]
             [cheshire.core :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -17,16 +16,15 @@
     :dcc nil
     :asset-view nil
     :profile nil
+    :stream false
     :model-provider "OpenAI" ;; or Anthropic
     :model "gpt-4o"
-    :ui :default}))
-
+    :ui :terminal}))
 
 (add-watch u :syn-client-watcher 
            (fn [_ _ old-state new-state]
              (when (not= (:sat old-state) (:sat new-state))
                (new-syn (:sat new-state)))))
-
 
 (defn set-api-key!
   "Sey API keys for specific model providers (OpenAI or Anthropic)." 
@@ -36,30 +34,16 @@
     (swap! u assoc key-keyword key)
      true))
 
-
 (defn token-input-def
   [placeholder]
   (let [console (System/console)
         token (.readPassword console placeholder nil)]
     token))
 
-
-;;(defn token-input-tui
-;;  [placeholder]
-;;  (s/trim (:result (b/gum :input :password true :placeholder placeholder))))
-
 (declare set-syn-token!)
 
-(defn prompt-for-sat
-  "Prompt for Synapse authentication token."
-  []
-  (let [sat (token-input-def "Synapse auth token: ")]
-    (when (set-syn-token! sat)
-      (println "Synapse set."))))
-
-
 (defn set-syn-token!
-  "Sets Synapse credentials from config, env, or prompts for input if not provided."
+  "Sets Synapse credentials from config or environment variable."
   [{:keys [synapse-auth-token]}]
   (cond
     synapse-auth-token
@@ -70,9 +54,9 @@
 
     :else
     (do
-      (println "Synapse credentials not detected. Please provide.")
-      (prompt-for-sat))))
-
+      (println "Synapse credentials not detected in environment variable or config!")
+      (println "Please set the SYNAPSE_AUTH_TOKEN environment variable or provide it in the config.")
+      (System/exit 1))))
 
 (defn choose-model-provider
   "Prompt user to choose between OpenAI and Anthropic."
@@ -87,7 +71,6 @@
           (println "Invalid provider choice. Please try again.")
           (recur))))))
 
-
 (defn prompt-for-api-key
   []
  (let [provider (choose-model-provider) 
@@ -99,7 +82,6 @@
       (do
         (println "Failed to set API key. Please try again.")
         false))))
-
 
 (defn set-model-provider! 
   "Checks and sets up the model provider based on available API keys and config.
@@ -135,7 +117,6 @@
         (println "No API keys detected. Please provide an API key for either OpenAI or Anthropic.") 
         (prompt-for-api-key)))))
 
-
 (defn choose-dcc-def!
   "User chooses dcc name, which is set in state along with asset view, if found."
   [options]
@@ -152,23 +133,15 @@
         (println "Invalid selection. Please try again.")
         (recur options)))))
 
-
-;;(defn choose-dcc-tui
-;;  [options]
-;;  (:result (b/gum :choose options)))
-
-
 (defn prompt-for-dcc
   []
   (let [options (run-query @conn unique-dccs)]
   (choose-dcc-def! (mapv first options))))
 
-
 (def fallback-config
   "Default configuration"
   {:tools false
    :db-env :prod})
-
 
 (defn read-config
   "Configuration for accent"
@@ -180,9 +153,8 @@
       (println "Config file" filename "not found or invalid, using fallback.")
       fallback-config)))
 
-
 (defn setup
-  []
+  [& {:keys [ui] :or {ui :terminal}}]
   (let [config (read-config "accent.edn")
         tools-enabled (:tools config)
         db-env (:db-env config)]
@@ -193,7 +165,9 @@
         (println "Attempting to pull the *latest* data models and configurations...")
         (init-db! {:env db-env})
         (println "Knowledgebase created!")
-        (prompt-for-dcc)
+        (when (= ui :terminal)
+          (prompt-for-dcc)
+          (swap! u assoc :ui ui))
         (catch Exception e
           (println "Encountered issue during setup:" (.getMessage e))
           (System/exit 1))))))
