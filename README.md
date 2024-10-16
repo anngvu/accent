@@ -30,6 +30,9 @@ The idea is to work out the "wrapper" interface into a usable and productive wor
 
 ### Usage
 
+With more power comes the need to be more "responsible". 
+Unlike interacting with an LLM in the default cloud interface provided by a model provider, the interface here will provide a more powerful infrastructure such as prompts and logic already optimized to project-specific workflows, direct API access to relevant systems (Synapse), local file and database system access, and other tools/agents to accomplish various tasks. But the infrastructure will also need to include guardrails.
+
 Until this is released as a .jar, you do need some Clojure tooling. 
 
 - Clone this repo. 
@@ -49,8 +52,6 @@ For the web UI:
 - `lein run -m accent.app`
 - Go to http://localhost:3000
 
-To create a more useful and "responsible" wrapper interface (in several senses of the word "responsible"), the app builds structure around the responsibilities described above that match the org's current workflows. 
-Unlike interacting with the LLM in the default interface, this is basically interaction with additional infra and guardrails that specific prompt templates and tools use access.
 
 #### AI Providers
 
