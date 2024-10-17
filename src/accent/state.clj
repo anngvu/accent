@@ -155,7 +155,7 @@
 
 (defn setup
   [& {:keys [ui] :or {ui :terminal}}]
-  (let [config (read-config "accent.edn")
+  (let [config (read-config "config.edn")
         tools-enabled (:tools config)
         db-env (:db-env config)]
     (set-model-provider! config)

@@ -38,12 +38,33 @@ Until this is released as a .jar, you do need some Clojure tooling.
 - Clone this repo. 
 - Install [Leiningen](https://leiningen.org/) (the easiest way to use Clojure).
 - Run `lein deps` to install dependencies.
-- Create a config file called `accent.edn` to specify things like [AI providers](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#ai-providers).
+- Create a config file called `config.edn`. See the section [configuration](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#configuration).
 
-#### Choose your UI
+#### Configuration
+
+Settings and (optionally) credentials can be defined in `config.edn`. 
+Review the `example_config.edn` file; rename it to `config.edn` and modify as needed. 
+In addition to the comments in the example file, more discussion is provided below.
+
+##### AI Providers
+
+The app integrates two providers, Anthropic and OpenAI, and an initial model provider must be specified. 
+In the *same chat*, it is possible to switch between models from the *same provider* but not between different providers, e.g. switching from ChatGPT-3.5 to ChatGPT-4o, but not from ChatGTP-3.5 to Claude Sonnet-3.5. 
+However, existence of the switching feature does not suggest that the user should be manually and frequently switching between models. 
+For both providers, the default is to use a model on the smarter end, though later on it may be possible to specify an initial model in the config. 
+Tip for usage: Trying to reduce costs by switching to a cheaper model for some tasks is likely premature optimization at this early stage. 
+
+- OpenAI
+  - To use, must have `OPENAI_API_KEY` in env or set in config.
+  - The default model is ChatGPT-4o.
+- Anthropic
+  - To use, must have `ANTHROPIC_API_KEY` in env or set in config.
+  - The default model is Claude Sonnet 3.5.
+
+#### Run your preferred UI
 
 > [!NOTE]  
-> Two interfaces are offered, terminal vs a web UI. Currently, there are some tradeoffs. The web UI will have some features that the terminal will not, such as showing figures. On the other hand, web UI only works with OpenAI for now.
+> Currently, there are some tradeoffs between the terminal vs web UI. The web UI will have some features that the terminal will not, such as showing figures. On the other hand, web UI only works with OpenAI for now.
 
 For the terminal:
 - `lein run -m accent.chat`
@@ -52,30 +73,17 @@ For the web UI:
 - `lein run -m accent.app`
 - Go to http://localhost:3000
 
+#### Demos / tutorials for various scenarios (WIP)
 
-#### AI Providers
-
-The app integrates two providers, Anthropic and OpenAI. In the same conversation, it is possible to switch between models from the same provider, though not between different providers, e.g. switching from ChatGPT-3.5 to ChatGPT-4o is fine, but not from ChatGTP-3.5 to Claude Sonnet-3.5. 
-However, just because the switching feature exists does not mean it is expected for the user to try manually try switching too much between models for different tasks. For both providers, the default is to use a model on the smarter end. Trying to reduce costs by switching to a cheaper model for some tasks is likely premature optimization at this early stage.
-
-- OpenAI
-  - To use, must have `OPENAI_API_KEY` in env/config.
-  - The default is the ChatGPT-4o model.
-- Anthropic
-  - To use, must have `ANTHROPIC_API_KEY` in env/config.
-  - The default is Claude Sonnet 3.5.
-
-
-#### Structured modes
-
-Here is how Responsibilities map to structured modes:
+Links and materials will be provided when these demos are available:
 
 - **Assisted curation workflow** - You are preparing some kind of data asset for Synapse (e.g. a dataset).
-- **Data model exploration and development**
-schematic JSON-LD models** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
+- **Data model exploration and development** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
 
-Planned functionality have been scoped/mapped as below for specific versions. 
+### Dynamic Roadmap
+
 **This roadmap adapts to the feedback and interest received.** 
+Functionality have been scoped/mapped as below for specific versions. 
 Feel free to propose a new feature or fast-tracking an existing one. 
 
 - **v0.01** - Undifferentiated infrastructure  
@@ -118,7 +126,7 @@ Feel free to propose a new feature or fast-tracking an existing one.
 
 Nothing more is planned until after the Evaluation (below).
 
-#### Evaluation
+### Evaluation
 
 There are ideas for other helper workflows and functionality, but these are dependent on first round of the proof-of-concept feedback, in case this is not the right approach/the design needs to change significantly. 
 To inform whether this actually benefits data management work, we need to to evaluate the proof-of-concept in several ways. 
