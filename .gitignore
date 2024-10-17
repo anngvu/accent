@@ -1,3 +1,7 @@
+# Personal configs
+accent.edn
+config.edn
+
 # Build tools
 graalvm-ce-java17-22.3.1
 
