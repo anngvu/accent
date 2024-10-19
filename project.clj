@@ -14,7 +14,9 @@
                  [compojure "1.6.2"]
                  [ring/ring-core "1.9.4"]
                  [com.brunobonacci/mulog "0.9.0"]
-                 [hiccup "2.0.0-RC3"]]
+                 [hiccup "2.0.0-RC3"]
+                 [org.apache.tika/tika-core "2.8.0"]
+                 [org.apache.tika/tika-parsers-standard-package "2.8.0"]]
   :jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
   :main ^:skip-aot accent.chat
