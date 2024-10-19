@@ -109,9 +109,9 @@ Feel free to propose a new feature or fast-tracking an existing one.
     - Integrate Anthropic Claude models.
     - Parity in terms of tool use (function calling).
 - **v0.4** - Implement upgraded UI / UX as an alternative to the basic console (simple web UI).
-    - Parity with console interface in flow.
-    - Set up local server for backend.
-    - Implement streaming for frontend.
+    - Set up local server.
+    - Implement UI.
+    - Implement streaming.
 - **v0.5** - Curation of external sources into structured format that can be stored into Synapse.
     - Functionality to create annotated data (as JSON) given:
       -  (required) Many web pages and JSON schema. Assess target web page and let user know when one is not feasible. 
