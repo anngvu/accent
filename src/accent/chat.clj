@@ -3,6 +3,7 @@
   (:require [accent.state :refer [setup u]]
             [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
             [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
+            [agents.extraction :refer [custom-openai-extraction-agent call-extraction-agent call_extraction_agent_spec]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -199,7 +200,8 @@
    ask_knowledgegraph_spec
    enhance_curation_spec
    get_queryable_fields_spec
-   ask_table_spec])
+   ask_table_spec
+   call_extraction_agent_spec])
 
 (def tools-for-anthropic (convert-tools-for-anthropic tools))
 
@@ -220,7 +222,7 @@
 (defmethod new-chat! "Anthropic" [] (new-chat-anthropic!))
 (defmethod new-chat! "OpenAI" [] (new-chat-openai!))
 
-(defn request-openai-completions 
+(defn request-openai-completions
   [body]
   (try
     (->(client/post "https://api.openai.com/v1/chat/completions"
@@ -398,6 +400,19 @@
         ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
   (save-chat-offer))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; UTILS
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn get-first-message-content [response-map]
+  (when (= 200 (:status response-map))
+    (let [body (:body response-map)
+          parsed-body (json/parse-string body true)
+          first-choice (first (:choices parsed-body))]
+      (get-in first-choice [:message :content]))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; TOOL CALL WRAPPERS
 ;;;;;;;;;;;;;;;;;;;;;;;
@@ -443,6 +458,14 @@
   (->>(query-table @syn table_id query)
       (str)))
 
+(defn wrap-call-extraction-agent
+  [{:keys [input input_format json_schema]}]
+  (println "Input format:" input_format)
+  (->(call-extraction-agent input input_format json_schema)
+     (request-openai-completions)
+     (get-first-message-content)))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; TOOL CALLS
 ;; ;;;;;;;;;;;;;;;;;;;;
@@ -473,6 +496,7 @@
                      "ask_knowledgegraph" (wrap-ask-knowledgegraph args)
                      "get_queryable_fields" (wrap-get-queryable-fields args)
                      "ask_table" (wrap-ask-table args)
+                     "call_extraction_agent" (wrap-call-extraction-agent args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (if (map? result)
           (merge  {:tool call-fn } result)
