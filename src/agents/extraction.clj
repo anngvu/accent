@@ -1,7 +1,6 @@
 (ns agents.extraction
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.chat :refer [as-user-message request-openai-completions]]
             [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.java.io :as io])
@@ -26,6 +25,26 @@
       {:type "string"
        :description "URL to a resource"}}}
     :required ["url"]}})
+
+(def call_extraction_agent_spec
+  {:type "function"
+   :function
+   {:name "call_extraction_agent"
+    :description ""
+    :parameters
+    {:type "object"
+     :properties
+     {:content
+      {:type "string"
+       :description "User-provided content to forward, which may be the text directly or a link to the content"}}
+     {:content_type
+      {:type "string"
+       :enum ["text" "link"]
+       :description "Representation of the content, as text or a link"}}
+     {:json_schema
+      {:type "string"
+       :description "Path to a JSON schema, which could be a URL or a local filepath."}}}
+    :required ["content" "json_schema"]}})
 
 (defn parse-url [url-string]
   (let [url (URL. url-string)
@@ -68,52 +87,36 @@
   "Create an extraction agent for custom json schema."
   [json-schema & {:keys [stream] :or {stream false}}] 
   (let [messages [{:role "system"
-                  :content "You are an entity extraction agent with access to specialized tools and can structure content following the JSON schema provided."}]
+                  :content "You are an entity extraction agent that can structure content following the JSON schema provided."}]
         custom-json-schema (process-json-schema json-schema)]
     (if (nil? custom-json-schema)
       (fn [_ & _args] {:error true :message "Invalid JSON schema provided."})
       (fn [input & _args]
-        (let [msg (if (string? input) (as-user-message input) input)
+        (let [msg (if (string? input) {:role "user" :content input} input)
               messages (conj messages msg)] 
           (-> {:model "gpt-4o-mini" ;; only gpt-4o-mini or newer gpt-4o models 
                :messages messages
-               :tools [parse_resource_spec]
-               :parallel_tool_calls false
                :stream stream
                :response_format {:type "json_schema" :json_schema {:name "research_observation" :schema custom-json-schema}} 
-               } 
-              (request-openai-completions)))))))
+               }))))))
 
- (defn openai-extraction-agent
-  "Create an extraction agent for custom json schema."
-  [{:keys [stream] :or {stream false}}]
-  (let [messages [{:role "system"
-                   :content "You are an entity extraction agent"}]]
-    (if false
-      (fn [_ & _args] {:error true :message "Invalid JSON schema provided."})
-      (fn [input & _args]
-        (let [msg (if (string? input) (as-user-message input) input)
-              messages (conj messages msg)]
-          (-> {:model "gpt-4o-mini" ;; only gpt-4o-mini or newer gpt-4o models 
-               :messages messages
-               :tools [parse_resource_spec]
-               :parallel_tool_calls false
-               :stream stream
-               }
-              (request-openai-completions))))))) 
- 
 
- (def my-agent (custom-openai-extraction-agent "https://raw.githubusercontent.com/nf-osi/nf-research-tools-schema/refs/heads/main/NF-Tools-Schemas/observations/SubmitObservationSchema.json"))
+(defn call-extraction-agent
+  "Create extraction agent and invoke it with content"
+  [content content-type json-schema]
+  (let [text ((= "text" content-type) content (parse-url content))
+        extraction-agent (custom-openai-extraction-agent json-schema)]
+    (extraction-agent text)))
 
- (defn -main 
-   []
-   (print "Your request: ")
-   (flush)
-   (loop [prompt (read-line)]
-     (let [ai-reply (my-agent prompt)]
-         (do
-           (println "accent _ " ai-reply)
-           (print "user _ ")
-           (flush)
-           (recur (read-line))))))
+;;  (defn -main 
+;;    []
+;;    (print "Your request: ")
+;;    (flush)
+;;    (loop [prompt (read-line)]
+;;      (let [ai-reply (ask prompt)]
+;;          (do
+;;            (println "accent _ " ai-reply)
+;;            (print "user _ ")
+;;            (flush)
+;;            (recur (read-line))))))
 

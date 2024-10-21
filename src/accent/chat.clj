@@ -3,6 +3,7 @@
   (:require [accent.state :refer [setup u]]
             [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
             [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
+            [agents.extration :refer [custom-openai-extraction-agent call-extraction-agent call_extraction_agent_spec]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -199,7 +200,8 @@
    ask_knowledgegraph_spec
    enhance_curation_spec
    get_queryable_fields_spec
-   ask_table_spec])
+   ask_table_spec
+   call_extraction_agent_spec])
 
 (def tools-for-anthropic (convert-tools-for-anthropic tools))
 
@@ -220,7 +222,7 @@
 (defmethod new-chat! "Anthropic" [] (new-chat-anthropic!))
 (defmethod new-chat! "OpenAI" [] (new-chat-openai!))
 
-(defn request-openai-completions 
+(defn request-openai-completions
   [body]
   (try
     (->(client/post "https://api.openai.com/v1/chat/completions"
@@ -272,6 +274,19 @@
         {:error true
          :message (:message response)}
         response))))
+
+;;  (defn prompt-openai-principal
+;;   "Principal agent / handler for other agents"
+;;   [{:keys [stream] :or {stream false}}]
+;;     (let [msg (if (string? input) (as-user-message input) input)
+;;               messages (conj messages msg)] 
+;;           (-> {:model "gpt-4o"
+;;                :messages messages
+;;                :tools []
+;;                :parallel_tool_calls false
+;;                :stream stream
+;;                } 
+;;               (request-openai-completions))))
 
 (defn reduce-tool-call-stream
   "Reducer for streamed tool call given thus-accumulated and latest delta."
@@ -443,6 +458,10 @@
   (->>(query-table @syn table_id query)
       (str)))
 
+(defn wrap-call-extraction-agent
+  [{:keys [content content_type json_schema]}
+  (comp request-openai-completions (call_extraction_agent content content_type json_schema))]
+
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; TOOL CALLS
 ;; ;;;;;;;;;;;;;;;;;;;;
@@ -473,6 +492,7 @@
                      "ask_knowledgegraph" (wrap-ask-knowledgegraph args)
                      "get_queryable_fields" (wrap-get-queryable-fields args)
                      "ask_table" (wrap-ask-table args)
+                     "call_extraction_agent" (wrap-call-extraction-agent args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (if (map? result)
           (merge  {:tool call-fn } result)
