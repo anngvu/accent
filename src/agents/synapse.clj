@@ -1,4 +1,4 @@
-(ns agents.extraction
+(ns agents.synapse
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [cheshire.core :as json]
