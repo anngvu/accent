@@ -36,14 +36,15 @@
      :properties
      {:input
       {:type "string"
-       :description "User-provided input to forward to the extraction agent. Always ask for content if only a json_schema is provided."}}
+       :description "User-provided input to forward to the extraction agent. This can be lines of text provided by the user or a link to the content."}}
      {:input_format
       {:type "string"
        :enum ["text" "link"]
-       :description "This should be 'text' if the user has provided lines of text, or 'link' if the user provides a url for the content."}}
+       :description (str "Assess the provided input format and always include the label to let the agent know how to process the request." 
+                        " This should be 'text' if the user has provided lines of text, or 'link' if the user provides a url for the content.")}}
      {:json_schema
       {:type "string"
-       :description "Path to a JSON schema, which could be a URL or a local filepath."}}}
+       :description "Path to a JSON schema, which could be a URL or a local filepath. If none is given by the user, use an empty string."}}}
     :required ["input" "input_format" "json_schema"]}})
 
 (defn parse-resource
@@ -111,7 +112,7 @@
 (defn call-extraction-agent
   "Create extraction agent and invoke it with some content"
   [input input-format json-schema]
-  (let [text (if (= "text" input-format) input (:content (parse-resource input)))
-        extraction-agent (custom-openai-extraction-agent json-schema)]
-    (extraction-agent text)))
-
+  (let [text (if (= "text" input-format) input (:content (parse-resource input)))]
+    (if (not= "" json-schema)
+      ((custom-openai-extraction-agent json-schema) text)
+      text)))

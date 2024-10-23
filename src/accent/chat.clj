@@ -4,6 +4,7 @@
             [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
             [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
             [agents.extraction :refer [custom-openai-extraction-agent call-extraction-agent call_extraction_agent_spec]]
+            ;; [agents.synapse :refer [curate_dataset_spec get_queryable_fields_spec ask_table_spec]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -14,10 +15,9 @@
 
 (defn system-prompt
   []
- (str "You are a helpful data management assistant for a data coordinating center (DCC). "
-      "Unless specified otherwise, your DCC is '" (@u :dcc) "' and your asset view has id " (@u :asset-view) "."
-      "You help users with searching and curating data on Synapse "
-      "and working with dcc-specific data dictionaries and configurations."))
+ (str "You are a data curation and management assistant with access to various tools and agents." 
+      (when (@u :dcc) (str " You know that the user is affiliated with a data coordinating center (DCC) called '" (@u :dcc) 
+      "' and that this DCC's asset view id is " (@u :asset-view) "."))))
 
 (defn init-prompt
   []
@@ -86,24 +86,6 @@
 ;; TOOl DEFINITIONS
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def curate_dataset_spec
-  {:type "function"
-   :function
-   {:name "curate_dataset"
-    :description "Use this to help user curate a dataset on the Synapse platform given a scope id and, optionally, a manifest id."
-    :parameters
-    {:type "object"
-     :properties
-     {:scope_id
-      {:type "string"
-       :description "The scope id to use, e.g. 'syn12345678'"}
-      :manifest_id
-      {:type "string"
-       :description (str "The manifest id, e.g. 'syn224466889'."
-                         "While the manifest can be automatically discovered in most cases,"
-                         " when not in the expected location the id should be provided.")}}}
-    :required ["scope_id"] }})
-
 (def get_knowledgegraph_schema_spec
   {:type "function"
    :function
@@ -117,7 +99,7 @@
       {:type "string"
        :enum ["data-model" "schematic-config" "dcc"]
        :description "Name of the desired schema to bring up for reference."}}}
-     :required []
+     :required ["schema_name"]
      }})
 
 (def ask_knowledgegraph_spec
@@ -153,36 +135,6 @@
       }
      :required ["title" "description"] }}})
 
-(def get_queryable_fields_spec
-  {:type "function"
-   :function
-   {:name "get_queryable_fields"
-    :description (str "Use this to confirm the availability of a Synapse table id and its queryable fields to help answer user questions. "
-                      "In some cases, the available fields may not be sufficient for the question. "
-                      "Use the result to construct a query for ask_synapse or explain why the question cannot be answered.")
-    :parameters
-    {:type "object"
-     :properties
-     {:table_id
-      {:type "string"
-       :description (str "By default, use asset view for table id "
-                         "unless user provides another id.")}}}
-    :required ["table_id"]}})
-
-(def ask_table_spec
-  {:type "function"
-   :function
-   {:name "ask_table"
-    :description (str "Use to query table with SQL to help answer a user question; "
-                      "query should include only searchable fields;"
-                      "a subset of valid SQL is allowed -- do not include update clauses.")
-    :parameters
-    {:type "object"
-     :properties
-     {:table_id {:type "string"
-                 :description "Table id, e.g. 'syn5464523"}
-      :query {:type "string"
-              :description "A valid SQL query."}}}}})
 
 (defn convert-tools-for-anthropic
   "Convert OpenAI tools schema to Anthropic tools schema"
@@ -195,12 +147,9 @@
         openai-tools))
 
 (def tools
-  [curate_dataset_spec
-   get_knowledgegraph_schema_spec
+  [get_knowledgegraph_schema_spec
    ask_knowledgegraph_spec
    enhance_curation_spec
-   get_queryable_fields_spec
-   ask_table_spec
    call_extraction_agent_spec])
 
 (def tools-for-anthropic (convert-tools-for-anthropic tools))
@@ -259,7 +208,7 @@
 (defn prompt-ai-openai
   "Send prompt to OpenAI AI."
   [input & [tool-choice]]
-  (let [message (if (string? input) (as-user-message input) input)]
+  (let [message (if (string? input) {:role "user" :content input} input)]
     (swap! messages conj message)
     (let [response (->
       (cond->
