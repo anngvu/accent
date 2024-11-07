@@ -459,9 +459,8 @@
       (str)))
 
 (defn wrap-call-extraction-agent
-  [{:keys [input input_format json_schema]}]
-  (println "Input format:" input_format)
-  (->(call-extraction-agent input input_format json_schema)
+  [{:keys [input input_representation json_schema json_schema_representation]}] 
+  (->(call-extraction-agent input input_representation json_schema json_schema_representation)
      (request-openai-completions)
      (get-first-message-content)))
 

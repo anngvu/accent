@@ -13,44 +13,44 @@
            [org.xml.sax ContentHandler]))
 
 
-(def parse_resource_spec
-  {:type "function"
-   :function
-   {:name "parse_resource"
-    :description "Use for preprocessing text from a resource URL when the user provides a url instead of plain text."
-    :parameters
-    {:type "object"
-     :properties
-     {:url
-      {:type "string"
-       :description "URL to a resource"}}}
-    :required ["url"]}})
-
 (def call_extraction_agent_spec
   {:type "function"
    :function
    {:name "call_extraction_agent"
-    :description ""
+    :description "Call the extraction agent to extract information from provided input content and JSON schema. 
+                  The extraction agent has access to various databases and local files."
+    ;;:strict true ;; TODO: Turn this on when it works; currently breaks
     :parameters
     {:type "object"
      :properties
      {:input
       {:type "string"
-       :description "User-provided input to forward to the extraction agent. Always ask for content if only a json_schema is provided."}}
-     {:input_format
+       :description (str "User-provided input to forward to the extraction agent. "
+                         "The input can be the verbatim text passage, web link, filepath, or database ID (e.g. 'PMC134567').")}
+     :input_representation
       {:type "string"
-       :enum ["text" "link"]
-       :description "This should be 'text' if the user has provided lines of text, or 'link' if the user provides a url for the content."}}
-     {:json_schema
+       :enum ["text" "link" "filepath" "PMCID"]
+       :description "Characterizes the given input to help the extraction agent select the optimal extraction method."}
+     :json_schema
       {:type "string"
-       :description "Path to a JSON schema, which could be a URL or a local filepath."}}}
-    :required ["input" "input_format" "json_schema"]}})
+       :description "JSON schema given by the user, expected to be a URL or filepath such as 'https://example.org/schema.json' or './schema.json'."}
+     :json_schema_representation
+      {:type "string" 
+       :enum ["link" "filepath"] 
+       :description "Characterizes how the JSON schema is provided, as a 'link' for web link or 'filepath' for something resembling a local filepath."}}
+    :required ["input" "input_representation" "json_schema" "json_schema_representation"] }}})
+
+(defn pmc-bioc
+  [pmcid] 
+  (str "https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_xml/" pmcid "/unicode"))
+
+(declare parse-resource)
 
 (defn parse-resource
-  "Parse content from various source types: URL, file path, or direct content"
-  [source]
+  "Parse content from various sources: URL, filepath, allowed database ID"
+  [source source-type]
   (cond
-    (str/starts-with? source "http") 
+    (= "link" source-type)
     (let [url (URL. source)
           input-stream (.openStream url)
           parser (AutoDetectParser.)
@@ -67,17 +67,19 @@
         (finally
           (.close input-stream))))
 
-    (or (str/starts-with? source "file:") (.exists (io/file source)))
-    {:content (slurp (if (str/starts-with? source "file:") 
-                       (subs source 5) 
-                       source))}
+    (= "filepath" source-type)
+    (if (.exists (io/file source)) {:content (slurp source)} {:content ""})
+    
+    (= "PMCID" source-type)
+    (parse-resource (pmc-bioc source) "link")
+    
     :else
     {:content source}))
 
 (defn process-json-schema 
-  "Takes either a URL to a json schema or text string of JSON schema and returns a validated json schema as map."
-  [json-schema]
-  (let [schema-content (:content (parse-resource json-schema))]
+  "Takes either a web link or filepath to a json schema and returns a validated json schema as map."
+  [json-schema json-schema-representation]
+  (let [schema-content (:content (parse-resource json-schema json-schema-representation))]
     (try
       (let [parsed-schema (json/parse-string schema-content)]
         (if (and (map? parsed-schema)
@@ -94,24 +96,21 @@
   "Create an extraction agent for custom json schema."
   [json-schema & {:keys [stream] :or {stream false}}] 
   (let [messages [{:role "system"
-                  :content "You are an entity extraction agent that can structure content following the JSON schema provided."}]
-        custom-json-schema (process-json-schema json-schema)]
-    (if (nil? custom-json-schema)
-      (fn [_] {:error true :message "Invalid JSON schema provided."})
+                  :content "You are a content extraction agent that can structure content adhering to the JSON schema provided."}]] 
       (fn [input]
         (let [msg (if (string? input) {:role "user" :content input} input)
               messages (conj messages msg)] 
           {:model "gpt-4o-mini" ;; only gpt-4o-mini or newer gpt-4o models 
            :messages messages
            :stream stream
-           :response_format {:type "json_schema" :json_schema {:name "schema" :schema custom-json-schema}}
-          }
-          )))))
+           :response_format {:type "json_schema" :json_schema {:name "schema" :schema json-schema}}
+          }))))
 
 (defn call-extraction-agent
   "Create extraction agent and invoke it with some content"
-  [input input-format json-schema]
-  (let [text (if (= "text" input-format) input (:content (parse-resource input)))
-        extraction-agent (custom-openai-extraction-agent json-schema)]
+  [input input-representation json-schema json-schema-representation]
+  (let [text (if (= "text" input-representation) input (:content (parse-resource input input-representation)))
+        custom-json-schema (process-json-schema json-schema json-schema-representation)
+        extraction-agent (custom-openai-extraction-agent custom-json-schema)]
     (extraction-agent text)))
 
