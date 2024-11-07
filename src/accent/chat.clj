@@ -223,13 +223,13 @@
 (defmethod new-chat! "OpenAI" [] (new-chat-openai!))
 
 (defn request-openai-completions
-  [body]
+  [body & [as]]
   (try
     (->(client/post "https://api.openai.com/v1/chat/completions"
                  {:headers {"Content-Type" "application/json"
                             "Authorization" (str "Bearer " (@u :oak))}
                   :body    (json/generate-string body)
-                  :as (if (@u :stream) :stream :string)
+                  :as (or as (if (@u :stream) :stream :string))
                   :timeout 25000}))
     (catch Exception e
       (println "Error in request-openai-completions: " (.getMessage e))
@@ -459,10 +459,9 @@
       (str)))
 
 (defn wrap-call-extraction-agent
-  [{:keys [input input_format json_schema]}]
-  (println "Input format:" input_format)
-  (->(call-extraction-agent input input_format json_schema)
-     (request-openai-completions)
+  [{:keys [input input_representation json_schema json_schema_representation]}] 
+  (->(call-extraction-agent input input_representation json_schema json_schema_representation)
+     (request-openai-completions :string)
      (get-first-message-content)))
 
 
@@ -539,7 +538,7 @@
     (if clients
       (do 
         (doseq [client @clients]
-            (httpkit/send! client (json/generate-string {:content (str "Note: Assistant needs to interpret results from " tool-name "\n")})))
+            (httpkit/send! client (json/generate-string {:content (str "(Assistant used " tool-name ")\n")})))
         (stream-openai msg forced-tool clients))
       (parse-openai-response (prompt-ai-openai msg forced-tool)))))
 
