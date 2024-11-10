@@ -14,7 +14,8 @@
 (defprotocol AIProviderOps
   (parse-response [this resp] [this resp clients] "Handle AI provider response")
   (prompt-ai [this content] [this content tool-choice] "Send prompt to AI provider")
-  (add-tool-result [this tool-calls] [this tool-calls clients] "Add tool result to response"))
+  (add-tool-result [this tool-calls] [this tool-calls clients] "Add tool result to response")
+  (get-last-text [this] "Get last text in message history"))
 
 (defprotocol AIProviderStreamOps
   (stream-response [this message tool-choice clients] "Handle streaming AI provider response"))
@@ -67,18 +68,6 @@
       {:error   true
        :message (str (.getMessage e))})))
 
-(defn get-anthropic-text
-  "Get text content for display"
-  [content]
-  (->> (filter #(= "text" (:type %)) content)
-       (first)
-       (:text)))
-
-(defn get-anthropic-tool-use
-  [content]
-  (->> (filter #(= "tool_use" (:type %)) content)
-       (first)))
-
 (def oops
   "Various responses to communicate that the chat is being terminated."
   ["we're over-limit, operations pause suddenly"
@@ -120,7 +109,9 @@
         ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
   (save-chat-offer))
 
-(defn get-first-message-content [response-map]
+(defn get-first-message-content 
+  "Parses an OpenAI completions response"
+  [response-map]
   (when (= 200 (:status response-map))
     (let [body (:body response-map)
           parsed-body (json/parse-string body true)
@@ -308,6 +299,7 @@
             (httpkit/send! client (json/generate-string {:content (str "(Assistant used " tool-name ")\n")})))
           (stream-response this msg forced-tool clients)) 
          (parse-response this (prompt-ai this msg forced-tool)))))
+  (get-last-text [this] "TODO")
 
   AIProviderStreamOps
   (stream-response [this message tool-choice clients]
@@ -341,6 +333,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftype AnthropicProvider [model messages tools tool-time]
+  
   AIProviderOps
   (parse-response [this resp] (parse-response this resp nil))
   (parse-response [this resp clients]
@@ -352,13 +345,14 @@
       (let [resp       (json/parse-string (:body resp) true)
             content    (:content resp)
             msg        {:role "assistant" :content content}
-            stop-reason (:stop_reason resp)]
+            stop-reason (:stop_reason resp)
+            tool-use (->>(filter #(= "tool_use" (:type %)) content)(first))]
         (swap! messages conj msg)
         (case stop-reason
-          "max_tokens"    (as-last-message messages (peek @messages) resp)
-          "tool_use"      (add-tool-result this (get-anthropic-tool-use content))
-          "stop_sequence" (peek @messages)
-          "end_turn"      (peek @messages)))))
+          "max_tokens"    (as-last-message messages (get-last-text this) resp)
+          "tool_use"      (add-tool-result this tool-use)
+          "stop_sequence" (get-last-text this)
+          "end_turn"      (get-last-text this)))))
   (prompt-ai [this content] (prompt-ai this content nil)) 
   (prompt-ai [this content tool-choice] 
      (let [message (if (string? content) (as-user-message content) content)] 
@@ -367,8 +361,8 @@
                        (cond->
                        {:model       model
                         :tools       tools
-                        :max_tokens  1000
-                        :system      nil ;;  (system-prompt) 
+                        :max_tokens  1024
+                        ;;:system      nil ;;  (system-prompt) 
                         :messages    @messages
                         :temperature 0
                         :stream      false}
@@ -378,13 +372,17 @@
           {:error   true
            :message (:message response)}
           response))))
+   (add-tool-result [this tool-use] (add-tool-result this tool-use nil))
    (add-tool-result [this tool-use clients]
                     (let [result (with-next-tool-call (tool-time tool-use))
                           msg    {:role    "user"
                                   :content [{:type        "tool_result"
                                              :tool_use_id (tool-use :id)
                                              :content     (result :result)}]}]
-                      (parse-response this (prompt-ai this msg)))))
+                      (parse-response this (prompt-ai this msg))))
+   (get-last-text [this]
+                  (let [msg (peek @messages)]
+                    (assoc msg :content (get-in msg [:content 0 :text])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Usage
@@ -540,14 +538,36 @@
 ;; Default chat
 ;;;;;;;;;;;;;;;;;;;;;
 
+;; MODELS
+
+(def openai-models
+  "https://platform.openai.com/docs/models"
+  {:default "gpt-4o"
+   :models {"gpt-3.5-turbo" {:label "GPT-3.5 Turbo"
+                             :context 16385}
+            "gpt-4o" {:label "GPT-4o"
+                      :context 128000}
+            "gpt-4" {:label "GPT-4"
+                     :context 128000}
+            "gpt-4-turbo-preview" {:label "GPT-4 Turbo"
+                                   :context 128000}}})
+
+(def anthropic-models
+  "https://docs.anthropic.com/en/docs/about-claude/models"
+  {:default "claude-3-5-sonnet-latest"
+   :models {"claude-3-5-sonnet-latest" {:label "Claude 3.5 Sonnet" 
+                                        :context 200000}
+            "claude-3-sonnet-20240229" {:label "Claude 3 Sonnet"
+                                        :context 200000}}})
+
 (def OpenAIChatAgent 
-  (OpenAIProvider. (@u :model) 
+  (OpenAIProvider. "gpt-4o" 
                    (new-chat-openai!) 
                    tools 
                    tool-time))
 
 (def AnthropicChatAgent 
-  (AnthropicProvider. (@u :model) 
+  (AnthropicProvider. "claude-3-5-sonnet-latest" 
                       (new-chat-anthropic!) 
                       anthropic-tools 
                       anthropic-tool-time))
