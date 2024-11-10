@@ -1,7 +1,7 @@
 (ns server.core
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.chat :refer [new-chat! stream-openai]]
+            [accent.chat :refer [stream-response OpenAIChatAgent]]
             [org.httpkit.server :as httpkit]
             [compojure.core :refer [defroutes GET]]
             [compojure.route :as route]
@@ -36,7 +36,7 @@
         ;; (httpkit/send! channel (json/generate-string {:type "dcc_set" :dcc (:dcc parsed-msg)})))
 
       "chat"
-      (future (stream-openai (:content parsed-msg) nil clients))
+      (future (stream-response OpenAIChatAgent (:content parsed-msg) nil clients))
 
       (httpkit/send! channel (json/generate-string {:type "error" :message "Unknown message type"})))))
 
@@ -58,5 +58,4 @@
 (defn start-server []
   (setup :ui :web)
   (swap! u assoc :stream true)
-  (new-chat!)
   (httpkit/run-server app-routes {:port 3000}))
