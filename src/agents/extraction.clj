@@ -77,15 +77,14 @@
     {:content source}))
 
 (defn process-json-schema 
-  "Takes either a web link or filepath to a json schema and returns a validated json schema as map."
+  "Takes a ref to a JSON schema (web link or filepath), attempts to read and validate before returning schema as a map."
   [json-schema json-schema-representation]
   (let [schema-content (:content (parse-resource json-schema json-schema-representation))]
     (try
       (let [parsed-schema (json/parse-string schema-content)]
-        (if (and (map? parsed-schema)
-                  true)
+        (if (and (map? parsed-schema) true)
                  ;; (contains? parsed-schema "type"))
-                 ;;(contains? parsed-schema "properties")
+                 ;; (contains? parsed-schema "properties")
           parsed-schema
           (throw (ex-info "Invalid JSON schema structure" {:schema parsed-schema}))))
       (catch Exception e
@@ -94,9 +93,9 @@
 
 (defn custom-openai-extraction-agent 
   "Create an extraction agent for custom json schema."
-  [json-schema & {:keys [stream] :or {stream false}}] 
+  [^clojure.lang.IPersistentMap json-schema & {:keys [stream] :or {stream false}}] 
   (let [messages [{:role "system"
-                  :content "You are a content extraction agent that can structure content adhering to the JSON schema provided."}]] 
+                  :content "You are a content extraction agent that can structure content following the JSON schema provided."}]] 
       (fn [input]
         (let [msg (if (string? input) {:role "user" :content input} input)
               messages (conj messages msg)] 
@@ -111,6 +110,6 @@
   [input input-representation json-schema json-schema-representation]
   (let [text (if (= "text" input-representation) input (:content (parse-resource input input-representation)))
         custom-json-schema (process-json-schema json-schema json-schema-representation)
-        extraction-agent (custom-openai-extraction-agent custom-json-schema)]
+        extraction-agent (custom-openai-extraction-agent custom-json-schema)] 
     (extraction-agent text)))
 
