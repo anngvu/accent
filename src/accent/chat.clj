@@ -325,7 +325,7 @@
                   (when tool_calls
                     (update-collected-tool-calls collected-response tool_calls))
                   (when content
-                    (when clients (doseq [client @clients] (httpkit/send! client (json/generate-string {:content content}))))
+                    (when clients (doseq [client @clients] (httpkit/send! client (json/generate-string {:type "assistant" :content content}))))
                     (swap! collected-response update :content str content)))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
