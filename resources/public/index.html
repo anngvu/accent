@@ -85,9 +85,11 @@
             if (message.type === 'connected') {
                 contentDiv.textContent += `${message.message}\n`;
             } else if (message.type === 'dcc_set') {
-                contentDiv.textContent += `\nDCC set to: ${message.dcc}\n`;
-            } else {
+                contentDiv.textContent += `\n(DCC set to: ${message.dcc}\n)`;
+            } else if (message.type === 'system') {
                 contentDiv.textContent += message.content;
+            } else {
+                contentDiv.textContent += 'Assistant: ' + message.content;
             }
         };
 
