@@ -15,10 +15,10 @@
 
 (def clients (atom #{}))
 
-(defn dcc-modal-html []
+(defn options-modal-html []
   (let [dccs ["A"]]; (mapv first (run-query @conn unique-dccs))]
     (html
-     [:div#dcc-modal.modal
+     [:div#options-modal.modal
       [:div.modal-content
        [:h2 "Select your DCC"]
        [:select#dcc-select
@@ -51,7 +51,7 @@
 (defroutes app-routes
   (GET "/" [] (response/resource-response "index.html" {:root "public"}))
   (GET "/ws" [] ws-handler)
-  (GET "/dcc-modal" [] (response/response (dcc-modal-html)))
+  (GET "/options-modal" [] (response/response (options-modal-html)))
   (route/resources "/")
   (route/not-found "Not Found"))
 
