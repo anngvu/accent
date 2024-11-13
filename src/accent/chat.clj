@@ -389,31 +389,6 @@
                   (let [msg (peek @messages)]
                     (assoc msg :content (get-in msg [:content 0 :text])))))
 
-;;;;;;;;;;;;;;;;;;;;;;
-;; Usage
-;;;;;;;;;;;;;;;;;;;;;;
-
-(defn system-prompt
-  []
-  (str "You are a helpful data management assistant for a data coordinating center (DCC). "
-       "Unless specified otherwise, your DCC is '" (@u :dcc) "' and your asset view has id " (@u :asset-view) "."
-       "You help users with searching and curating data on Synapse "
-       "and working with dcc-specific data dictionaries and configurations."))
-
-(defn init-prompt
-  []
-  [{:role    "system"
-    :content (system-prompt)}])
-
-(defn new-chat-openai!
-  "Initialize a new chat with OpenAI."
-  []
-  (atom (init-prompt)))
-
-(defn new-chat-anthropic!
-  "Initialize a new chat with Anthropic."
-  []
-  (atom []))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Tool defs
@@ -540,10 +515,8 @@
 (def anthropic-tools (convert-tools-for-anthropic tools))
 
 ;;;;;;;;;;;;;;;;;;;;;
-;; Default chat
+;; Models
 ;;;;;;;;;;;;;;;;;;;;;
-
-;; MODELS
 
 (def openai-models
   "https://platform.openai.com/docs/models"
@@ -560,20 +533,30 @@
 (def anthropic-models
   "https://docs.anthropic.com/en/docs/about-claude/models"
   {:default "claude-3-5-sonnet-latest"
-   :models {"claude-3-5-sonnet-latest" {:label "Claude 3.5 Sonnet" 
+   :models {"claude-3-5-sonnet-latest" {:label "Claude 3.5 Sonnet"
                                         :context 200000}
             "claude-3-sonnet-20240229" {:label "Claude 3 Sonnet"
                                         :context 200000}}})
 
+;;;;;;;;;;;;;;;;;;;;;
+;; Vanilla chat
+;;;;;;;;;;;;;;;;;;;;;
+
+(def init-prompt [{:role "system" :content "You are a helpful assistant."}])
+
+(def openai-messages (atom (init-prompt)))
+
+(def anthropic-messages (atom []))
+
 (def OpenAIChatAgent 
   (OpenAIProvider. "gpt-4o" 
-                   (new-chat-openai!) 
+                   openai-messages
                    tools 
                    tool-time))
 
 (def AnthropicChatAgent 
   (AnthropicProvider. "claude-3-5-sonnet-latest" 
-                      (new-chat-anthropic!) 
+                      anthropic-messages
                       anthropic-tools 
                       anthropic-tool-time))
 
