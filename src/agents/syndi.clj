@@ -196,9 +196,9 @@
                      "ask_table"              (wrap-ask-table args)
                      "call_extraction_agent"  (wrap-call-extraction-agent args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
-        (if (map? result)
-           (merge  {:tool call-fn} result)
-           {:tool call-fn :result result}))
+        (->
+         (if (map? result) (merge  {:tool call-fn} result) {:tool call-fn :result result})
+         (with-next-tool-call))
       (catch Exception e
         {:tool   call-fn
          :result (.getMessage e)
