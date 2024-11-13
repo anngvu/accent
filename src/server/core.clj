@@ -58,4 +58,6 @@
 (defn start-server []
   (setup :ui :web)
   (swap! u assoc :stream true)
-  (httpkit/run-server app-routes {:port 3000}))
+  (let [server (httpkit/run-server app-routes {:port 3000})]
+    (clojure.java.browse/browse-url "http://localhost:3000")
+    server))
