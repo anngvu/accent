@@ -11,7 +11,8 @@
             [ring.util.response :as response]
             [clojure.java.io :as io]
             [database.dlvn :refer [run-query conn unique-dccs]]
-            [hiccup.core :refer [html]]))
+            [hiccup.core :refer [html]]
+            [clojure.java.browse :refer [browse-url]]))
 
 (def clients (atom #{}))
 
@@ -59,5 +60,5 @@
   (setup :ui :web)
   (swap! u assoc :stream true)
   (let [server (httpkit/run-server app-routes {:port 3000})]
-    (clojure.java.browse/browse-url "http://localhost:3000")
+    (browse-url "http://localhost:3000")
     server))
