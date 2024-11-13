@@ -183,10 +183,8 @@
                         (cond->
                         {:model model
                          :messages @messages
-                         ;;:tools tools
-                         :parallel_tool_calls false
                          :stream (@u :stream)}
-                         tools (assoc :tools tools) 
+                         tools (merge {:tools tools :parallel_tool_calls false}) 
                          tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
                        (request-openai-completions))]
          (if (:error response)
@@ -244,7 +242,7 @@
                     (swap! collected-response update :content str content)))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; AnthropicProvider Definition
+;; Anthropic Provider Def
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftype AnthropicProvider [model messages tools tool-time]
@@ -274,14 +272,14 @@
        (swap! messages conj message) 
        (let [response (-> 
                        (cond->
-                       {:model       model
-                        :tools       tools
+                       {:model       model 
                         :max_tokens  1024
                         ;;:system      nil ;;  (system-prompt) 
                         :messages    @messages
                         :temperature 0
-                        :stream      false}
-                        tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
+                        :stream      false} 
+                         tools (assoc :tools tools)
+                         tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
                       (request-anthropic-messages))]
         (if (:error response)
           {:error   true
@@ -305,6 +303,7 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (defn tool-time
+  "Stub function"
   [tool-call]
   (let [call-fn (get-in tool-call [:function :name])
         args    (json/parse-string (get-in tool-call [:function :arguments]) true)] 
@@ -313,6 +312,7 @@
          :error  false}))
 
 (defn anthropic-tool-time
+  "Stub function"
   [tool-use]
   (let [tool-call {:id       (:id tool-use)
                    :type     "function"
@@ -330,7 +330,21 @@
                              (get-in [:function :parameters]))})
         openai-tools))
 
-(def empty-tools nil)
+(def search_tool_spec
+  "Example of a tool spec for a search tool; not used."
+  {:type "function"
+   :function
+   {:name "search"
+    :description "Search the web"
+    :parameters
+    {:type "object"
+     :properties
+     {:query
+      {:type "string"
+       :description "Search query"}}}
+    :required []}})
+
+(def tools [search_tool_spec])
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Models
@@ -364,18 +378,18 @@
 
 (def openai-messages (atom openai-init-prompt))
 
-(def anthropic-messages (atom []))
+(def anthropic-messages (atom [])) ;; system prompt is not in messages
 
 (def OpenAIChatAgent 
   (OpenAIProvider. "gpt-4o" 
                    openai-messages
-                   empty-tools 
+                   nil 
                    tool-time))
 
 (def AnthropicChatAgent 
   (AnthropicProvider. "claude-3-5-sonnet-latest" 
-                      anthropic-messages
-                      empty-tools
+                      anthropic-messages 
+                      nil
                       anthropic-tool-time))
 
 (defn -main []
