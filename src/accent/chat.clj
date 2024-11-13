@@ -296,7 +296,7 @@
        (if clients
         (do
           (doseq [client @clients]
-            (httpkit/send! client (json/generate-string {:content (str "(Assistant used " tool-name ")\n")})))
+            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")})))
           (stream-response this msg forced-tool clients)) 
          (parse-response this (prompt-ai this msg forced-tool)))))
   (get-last-text [this] "TODO")
@@ -314,9 +314,10 @@
               (if (= data "[DONE]")
                 (do
                   (when clients
-                    (doseq [client @clients] (httpkit/send! client (json/generate-string {:content "\n"}))))
+                    (doseq [client @clients] (httpkit/send! client (json/generate-string {:type "assistant-end-message" :content "\n"}))))
                   (parse-response this (recreate-parseable-openai-response @collected-response) clients))
                 (let [parsed (json/parse-string data true)
+                      role (get-in parsed [:choices 0 :delta :role])
                       content (get-in parsed [:choices 0 :delta :content])
                       finish_reason (get-in parsed [:choices 0 :finish_reason])
                       tool_calls (get-in parsed [:choices 0 :delta :tool_calls 0])]
@@ -325,7 +326,11 @@
                   (when tool_calls
                     (update-collected-tool-calls collected-response tool_calls))
                   (when content
-                    (when clients (doseq [client @clients] (httpkit/send! client (json/generate-string {:content content}))))
+                    (when clients (doseq [client @clients] 
+                                    (httpkit/send! client 
+                                                   (json/generate-string 
+                                                    {:type (if role "assistant-start-message" "assistant-message") 
+                                                     :content content}))))
                     (swap! collected-response update :content str content)))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

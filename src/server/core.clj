@@ -11,14 +11,15 @@
             [ring.util.response :as response]
             [clojure.java.io :as io]
             [database.dlvn :refer [run-query conn unique-dccs]]
-            [hiccup.core :refer [html]]))
+            [hiccup.core :refer [html]]
+            [clojure.java.browse :refer [browse-url]]))
 
 (def clients (atom #{}))
 
-(defn dcc-modal-html []
+(defn options-modal-html []
   (let [dccs ["A"]]; (mapv first (run-query @conn unique-dccs))]
     (html
-     [:div#dcc-modal.modal
+     [:div#options-modal.modal
       [:div.modal-content
        [:h2 "Select your DCC"]
        [:select#dcc-select
@@ -42,7 +43,7 @@
 
 (defn ws-handler [req]
   (httpkit/with-channel req channel
-    (httpkit/send! channel (json/generate-string {:type "connected" :message "Connected to server"}))
+    (httpkit/send! channel (json/generate-string {:type "connected" :message "Connected to server."}))
     (httpkit/on-receive channel (fn [msg] (handle-message msg clients)))
     (httpkit/on-close channel (fn [status] (swap! clients disj channel)))
     ;; Add client to the set
@@ -51,11 +52,13 @@
 (defroutes app-routes
   (GET "/" [] (response/resource-response "index.html" {:root "public"}))
   (GET "/ws" [] ws-handler)
-  (GET "/dcc-modal" [] (response/response (dcc-modal-html)))
+  (GET "/options-modal" [] (response/response (options-modal-html)))
   (route/resources "/")
   (route/not-found "Not Found"))
 
 (defn start-server []
   (setup :ui :web)
   (swap! u assoc :stream true)
-  (httpkit/run-server app-routes {:port 3000}))
+  (let [server (httpkit/run-server app-routes {:port 3000})]
+    (browse-url "http://localhost:3000")
+    server))
