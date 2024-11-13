@@ -542,9 +542,9 @@
 ;; Vanilla chat
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def init-prompt [{:role "system" :content "You are a helpful assistant."}])
+(def openai-init-prompt [{:role "system" :content "You are a helpful assistant."}])
 
-(def openai-messages (atom (init-prompt)))
+(def openai-messages (atom openai-init-prompt))
 
 (def anthropic-messages (atom []))
 
