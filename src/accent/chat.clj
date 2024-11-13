@@ -380,13 +380,13 @@
 
 (def anthropic-messages (atom [])) ;; system prompt is not in messages
 
-(def OpenAIChatAgent 
+(def OpenAIVanillaChat 
   (OpenAIProvider. "gpt-4o" 
                    openai-messages
                    nil 
                    tool-time))
 
-(def AnthropicChatAgent 
+(def AnthropicVanillaChat
   (AnthropicProvider. "claude-3-5-sonnet-latest" 
                       anthropic-messages 
                       nil
@@ -395,8 +395,8 @@
 (defn -main []
   (setup)
   (let [provider (if (= (@u :model-provider) "OpenAI") 
-                   OpenAIChatAgent
-                   AnthropicChatAgent)]
+                   OpenAIVanillaChat
+                   AnthropicVanillaChat)]
     (println "Chat initialized. Your message:") 
     (loop [prompt (read-line)]
       (let [ai-reply (->> prompt
