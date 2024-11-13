@@ -106,15 +106,6 @@
         ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
   (save-chat-offer))
 
-(defn get-first-message-content 
-  "Parses an OpenAI completions response"
-  [response-map]
-  (when (= 200 (:status response-map))
-    (let [body (:body response-map)
-          parsed-body (json/parse-string body true)
-          first-choice (first (:choices parsed-body))]
-      (get-in first-choice [:message :content]))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper Fns for Streaming
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -374,6 +365,11 @@
 ;; Vanilla chat
 ;;;;;;;;;;;;;;;;;;;;;
 
+(defn ask [provider prompt]
+  (->> prompt
+       (prompt-ai provider)
+       (parse-response provider)))
+
 (def openai-init-prompt [{:role "system" :content "You are a helpful assistant."}])
 
 (def openai-messages (atom openai-init-prompt))
@@ -392,18 +388,20 @@
                       nil
                       anthropic-tool-time))
 
-(defn -main []
-  (setup)
-  (let [provider (if (= (@u :model-provider) "OpenAI") 
-                   OpenAIVanillaChat
-                   AnthropicVanillaChat)]
-    (println "Chat initialized. Your message:") 
-    (loop [prompt (read-line)]
-      (let [ai-reply (->> prompt
-                         (prompt-ai provider)
-                         (parse-response provider))]
-        (println "accent:" (ai-reply :content))
-        (when-not (:final ai-reply)
-          (print "user: ")
-          (flush)
-          (recur (read-line)))))))
+(def provider-agent 
+  (if (= (@u :model-provider) "OpenAI") 
+    OpenAIVanillaChat 
+    AnthropicVanillaChat))
+
+(defn chat [provider-agent]
+  (setup) 
+  (println "Chat initialized. Your message:") 
+  (loop [prompt (read-line)] 
+    (let [ai-reply (ask provider-agent prompt)] 
+      (println "assistant:" (ai-reply :content)) 
+      (when-not (:final ai-reply) 
+        (print "user: ") 
+        (flush) 
+        (recur (read-line))))))
+
+(defn -main [] (chat provider-agent))

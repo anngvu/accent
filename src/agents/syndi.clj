@@ -1,6 +1,7 @@
 (ns agents.syndi
   (:gen-class)
-  (:require [accent.chat :refer [->OpenAIProvider ->AnthropicProvider convert-tools-for-anthropic]]
+  (:require [accent.state :refer [setup u]]
+            [accent.chat :as chat]
             [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
             [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
             [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
@@ -123,7 +124,7 @@
    call_extraction_agent_spec
    ])
 
-(def anthropic-tools (convert-tools-for-anthropic tools))
+(def anthropic-tools (chat/convert-tools-for-anthropic tools))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Custom tool calls
@@ -163,10 +164,21 @@
                 (str))
    :type   :success})
 
+;; util
+
+(defn get-first-message-content
+  "Parses an OpenAI completions response"
+  [response-map]
+  (when (= 200 (:status response-map))
+    (let [body (:body response-map)
+          parsed-body (json/parse-string body true)
+          first-choice (first (:choices parsed-body))]
+      (get-in first-choice [:message :content]))))
+
 (defn wrap-call-extraction-agent
   [{:keys [input input_representation json_schema json_schema_representation]}] 
   (-> (call-extraction-agent input input_representation json_schema json_schema_representation) 
-      (request-openai-completions :string) 
+      (chat/request-openai-completions :string) 
       (get-first-message-content)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -198,7 +210,7 @@
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (->
          (if (map? result) (merge  {:tool call-fn} result) {:tool call-fn :result result})
-         (with-next-tool-call))
+         (with-next-tool-call)))
       (catch Exception e
         {:tool   call-fn
          :result (.getMessage e)
@@ -217,30 +229,32 @@
 ;; Agent
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def OpenAIChatAgent 
-  (->OpenAIProvider "gpt-4o" 
-                   (new-chat-openai!) 
+(def openai-init-prompt 
+  [{:role "system" 
+    :content (str "You are a data professional who helps users manage and interact with data on the Synapse platform." 
+                  "Your name is Syndi (pronounced like 'Cindy')."
+                  "To provide the best help, ask users about a data coordinating center (DCC) users may be affiliated with "
+                  "and proactively describe and offer to deploy tools at your disposal.")}])
+
+(def openai-messages (atom openai-init-prompt))
+
+(def anthropic-messages (atom []))
+
+(def OpenAISyndiAgent 
+  (chat/->OpenAIProvider "gpt-4o" 
+                   openai-messages
                    tools 
                    tool-time))
 
-(def AnthropicChatAgent 
-  (->AnthropicProvider "claude-3-5-sonnet-latest" 
-                      (new-chat-anthropic!) 
+(def AnthropicSyndiAgent 
+  (chat/->AnthropicProvider "claude-3-5-sonnet-latest" 
+                      anthropic-messages
                       anthropic-tools 
                       anthropic-tool-time))
 
-(defn -main []
-  (setup)
-  (let [provider (if (= (@u :model-provider) "OpenAI") 
-                   OpenAIChatAgent
-                   AnthropicChatAgent)]
-    (println "Chat initialized. Your message:") 
-    (loop [prompt (read-line)]
-      (let [ai-reply (->> prompt
-                         (prompt-ai provider)
-                         (parse-response provider))]
-        (println "accent:" (ai-reply :content))
-        (when-not (:final ai-reply)
-          (print "user: ")
-          (flush)
-          (recur (read-line)))))))
+(def provider-agent
+  (if (= (@u :model-provider) "OpenAI")
+    OpenAISyndiAgent 
+    AnthropicSyndiAgent))
+
+(defn -main [] (chat/chat provider-agent))
