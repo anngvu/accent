@@ -1,7 +1,8 @@
 (ns server.core
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.chat :refer [stream-response OpenAIChatAgent]]
+            [accent.chat :refer [stream-response]]
+            [agents.syndi :refer [OpenAISyndiAgent]]
             [org.httpkit.server :as httpkit]
             [compojure.core :refer [defroutes GET]]
             [compojure.route :as route]
@@ -37,7 +38,7 @@
         ;; (httpkit/send! channel (json/generate-string {:type "dcc_set" :dcc (:dcc parsed-msg)})))
 
       "chat"
-      (future (stream-response OpenAIChatAgent (:content parsed-msg) nil clients))
+      (future (stream-response OpenAISyndiAgent (:content parsed-msg) nil clients))
 
       (httpkit/send! channel (json/generate-string {:type "error" :message "Unknown message type"})))))
 
