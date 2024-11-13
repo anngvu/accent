@@ -296,7 +296,7 @@
        (if clients
         (do
           (doseq [client @clients]
-            (httpkit/send! client (json/generate-string {:content (str "(Assistant used " tool-name ")\n")})))
+            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")})))
           (stream-response this msg forced-tool clients)) 
          (parse-response this (prompt-ai this msg forced-tool)))))
   (get-last-text [this] "TODO")

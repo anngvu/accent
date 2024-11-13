@@ -43,7 +43,7 @@
 
 (defn ws-handler [req]
   (httpkit/with-channel req channel
-    (httpkit/send! channel (json/generate-string {:type "connected" :message "Connected to server"}))
+    (httpkit/send! channel (json/generate-string {:type "connected" :message "Connected to server."}))
     (httpkit/on-receive channel (fn [msg] (handle-message msg clients)))
     (httpkit/on-close channel (fn [status] (swap! clients disj channel)))
     ;; Add client to the set

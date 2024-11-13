@@ -32,6 +32,10 @@
             font-style: italic;
             margin-bottom: 1rem;
         }
+        .observation-message {
+            color: gray;
+            font-style: italic;
+        }
         .user-message {
             color: #3B82F6;
             margin-bottom: 1rem;
@@ -101,8 +105,8 @@
                 contentDiv.innerHTML += `<div class="system-message">${message.message}</div>`;
             } else if (message.type === 'dcc_set') {
                 contentDiv.innerHTML += `<div class="system-message">(DCC set to: ${message.dcc})</div>`;
-            } else if (message.type === 'system') {
-                contentDiv.innerHTML += `<div class="system-message">${message.content}</div>`;
+            } else if (message.type === 'observation-message') {
+                contentDiv.innerHTML += `<div class="observation-message">${message.content}</div>`;
             } else if (message.type === 'assistant-start-message') {
                 contentDiv.innerHTML += `<div class="assistant-message">${message.content}`;
             } else if (message.type === 'assistant-message') {
