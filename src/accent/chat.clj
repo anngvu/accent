@@ -1,9 +1,6 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
-            [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
-            [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -109,103 +106,6 @@
         ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
   (save-chat-offer))
 
-(defn get-first-message-content 
-  "Parses an OpenAI completions response"
-  [response-map]
-  (when (= 200 (:status response-map))
-    (let [body (:body response-map)
-          parsed-body (json/parse-string body true)
-          first-choice (first (:choices parsed-body))]
-      (get-in first-choice [:message :content]))))
-
-;;;;;;;;;;;;;;;;;;;;;;
-;; Tool call wrappers
-;;;;;;;;;;;;;;;;;;;;;;
-
-(defn wrap-curate-dataset
-  [args]
-  (let [scope (args :scope_id)
-        asset-view (@u :asset-view)
-        dataset-props (get-portal-dataset-props)]
-    {:result (str (curate-dataset @syn scope asset-view dataset-props))
-     :type   :success}))
-
-(defn wrap-enhance-curation
-  [args]
-  {:result "Successful update."
-   :type   :success})
-
-(defn wrap-ask-knowledgegraph
-  [args]
-  {:result (->> (ask-knowledgegraph (args :query))
-                (mapcat identity)
-                (vec)
-                (str/join ", "))
-   :type   :success})
-
-(defn wrap-get-queryable-fields
-  [{:keys [table_id] :or {table_id (@u :asset-view)}}]
-  (let [cols (get-table-column-models @syn table_id)
-        table-schema (as-schema cols (@u :dcc))]
-    {:result (str table-schema)
-     :type   :success}))
-
-(defn wrap-ask-table
-  [{:keys [table_id query]}]
-  {:result (->> (query-table @syn table_id query)
-                (str))
-   :type   :success})
-
-(defn wrap-call-extraction-agent
-  [{:keys [input input_representation json_schema json_schema_representation]}] 
-  (-> (call-extraction-agent input input_representation json_schema json_schema_representation) 
-      (request-openai-completions :string) 
-      (get-first-message-content)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Custom tool time
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn with-next-tool-call
-  "Applies logic for chaining certain tool calls. Input should be result from `tool-time`
-  Currently, enhance_curation should be forced after curate_dataset only under certain return types."
-  [tool-result]
-  (if (and (= "curate_dataset" (tool-result :tool)) (= :success (tool-result :type)))
-    (assoc tool-result :next-tool-call "enhance_curation")
-    tool-result))
-
-(defn tool-time 
-  [tool-call]
-  (let [call-fn (get-in tool-call [:function :name])
-        args    (json/parse-string (get-in tool-call [:function :arguments]) true)]
-    (try
-      (let [result (case call-fn
-                     "curate_dataset"         (wrap-curate-dataset args)
-                     "enhance_curation"       (wrap-enhance-curation args)
-                     "get_knowledgegraph_schema" {:result (show-reference-schema (args :schema_name))
-                                                  :type   :success}
-                     "ask_knowledgegraph"     (wrap-ask-knowledgegraph args)
-                     "get_queryable_fields"   (wrap-get-queryable-fields args)
-                     "ask_table"              (wrap-ask-table args)
-                     "call_extraction_agent"  (wrap-call-extraction-agent args)
-                     (throw (ex-info "Invalid tool function" {:tool call-fn})))]
-        (if (map? result)
-           (merge  {:tool call-fn} result)
-           {:tool call-fn :result result}))
-      (catch Exception e
-        {:tool   call-fn
-         :result (.getMessage e)
-         :type   :error
-         :error  true}))))
-
-(defn anthropic-tool-time
-  [tool-use]
-  (let [tool-call {:id       (:id tool-use)
-                   :type     "function"
-                   :function {:name      (:name tool-use)
-                              :arguments (json/generate-string (:input tool-use))}}]
-    (tool-time tool-call)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper Fns for Streaming
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -274,9 +174,8 @@
                         (cond->
                         {:model model
                          :messages @messages
-                         :tools tools
-                         :parallel_tool_calls false
                          :stream (@u :stream)}
+                         tools (merge {:tools tools :parallel_tool_calls false}) 
                          tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
                        (request-openai-completions))]
          (if (:error response)
@@ -287,7 +186,7 @@
   (add-tool-result [this tool-calls clients]
     (let [tool-call   (first tool-calls)
           tool-name   (get-in tool-call [:function :name])
-          result      (with-next-tool-call (tool-time tool-call))
+          result      (tool-time tool-call)
           forced-tool (result :next-tool-call)
           msg         {:tool_call_id (tool-call :id)
                        :role         "tool"
@@ -334,7 +233,7 @@
                     (swap! collected-response update :content str content)))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; AnthropicProvider Definition
+;; Anthropic Provider Def
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftype AnthropicProvider [model messages tools tool-time]
@@ -364,14 +263,14 @@
        (swap! messages conj message) 
        (let [response (-> 
                        (cond->
-                       {:model       model
-                        :tools       tools
+                       {:model       model 
                         :max_tokens  1024
                         ;;:system      nil ;;  (system-prompt) 
                         :messages    @messages
                         :temperature 0
-                        :stream      false}
-                        tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
+                        :stream      false} 
+                         tools (assoc :tools tools)
+                         tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
                       (request-anthropic-messages))]
         (if (:error response)
           {:error   true
@@ -379,7 +278,7 @@
           response))))
    (add-tool-result [this tool-use] (add-tool-result this tool-use nil))
    (add-tool-result [this tool-use clients]
-                    (let [result (with-next-tool-call (tool-time tool-use))
+                    (let [result (tool-time tool-use)
                           msg    {:role    "user"
                                   :content [{:type        "tool_result"
                                              :tool_use_id (tool-use :id)
@@ -389,133 +288,28 @@
                   (let [msg (peek @messages)]
                     (assoc msg :content (get-in msg [:content 0 :text])))))
 
-;;;;;;;;;;;;;;;;;;;;;;
-;; Usage
-;;;;;;;;;;;;;;;;;;;;;;
-
-(defn system-prompt
-  []
-  (str "You are a helpful data management assistant for a data coordinating center (DCC). "
-       "Unless specified otherwise, your DCC is '" (@u :dcc) "' and your asset view has id " (@u :asset-view) "."
-       "You help users with searching and curating data on Synapse "
-       "and working with dcc-specific data dictionaries and configurations."))
-
-(defn init-prompt
-  []
-  [{:role    "system"
-    :content (system-prompt)}])
-
-(defn new-chat-openai!
-  "Initialize a new chat with OpenAI."
-  []
-  (atom (init-prompt)))
-
-(defn new-chat-anthropic!
-  "Initialize a new chat with Anthropic."
-  []
-  (atom []))
 
 ;;;;;;;;;;;;;;;;;;;;;
-;; Tool defs
+;; Tools
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def curate_dataset_spec
-  {:type "function"
-   :function
-   {:name "curate_dataset"
-    :description "Use this to help user curate a dataset on the Synapse platform given a scope id and, optionally, a manifest id."
-    :parameters
-    {:type "object"
-     :properties
-     {:scope_id
-      {:type "string"
-       :description "The scope id to use, e.g. 'syn12345678'"}
-      :manifest_id
-      {:type "string"
-       :description (str "The manifest id, e.g. 'syn224466889'."
-                         "While the manifest can be automatically discovered in most cases,"
-                         " when not in the expected location the id should be provided.")}}}
-    :required ["scope_id"] }})
+(defn tool-time
+  "Stub function"
+  [tool-call]
+  (let [call-fn (get-in tool-call [:function :name])
+        args    (json/parse-string (get-in tool-call [:function :arguments]) true)] 
+        {:tool   call-fn
+         :result "Tools are not implemented in vanilla chat."
+         :error  false}))
 
-(def get_knowledgegraph_schema_spec
-  {:type "function"
-   :function
-   {:name "get_knowledgegraph_schema"
-    :description (str "Retrieve the knowledgegraph schemas in order to help construct a correct query for the user question."
-                      "Then use ask_knowledgegraph with the constructed query.")
-    :parameters
-    {:type "object"
-     :properties
-     {:schema_name
-      {:type "string"
-       :enum ["data-model" "schematic-config" "dcc"]
-       :description "Name of the desired schema to bring up for reference."}}}
-     :required []
-     }})
-
-(def ask_knowledgegraph_spec
-  {:type "function"
-   :function
-   {:name "ask_knowledgegraph"
-    :description (str "Query knowledgegraph on the user's behalf to answer questions about different centers' reference data models, app configurations, and assets."
-                      "Always base queries on the knowledgegraph schema reference returned by get_knowledgegraph_schema. "
-                      "Input should be a valid Datomic query.")
-    :parameters
-    {:type "object"
-     :properties
-     {:query
-      {:type "string"
-       :description (str "Datomic query extracting info to answer the user's question."
-                         "Datomic query should be written as plain text using the database schema.")}}
-     :required ["query"]}}})
-
-(def enhance_curation_spec
-  {:type "function"
-   :function
-   {:name "enhance_curation"
-    :description "Given features and related content about an entity, derive additional properties."
-    :parameters
-    {:type "object"
-     :properties
-     {:title {:type "string"
-              :description "A publishable title for the entity given its features and what's present about it"}
-      :description {:type "string"
-                    :description "Helpful summary for entity no more than a paragraph long."}
-      :other {:type "object"
-              :description "Any additional properties and values. Use only properties mentioned."}
-      }
-     :required ["title" "description"] }}})
-
-(def get_queryable_fields_spec
-  {:type "function"
-   :function
-   {:name "get_queryable_fields"
-    :description (str "Use this to confirm the availability of a Synapse table id and its queryable fields to help answer user questions. "
-                      "In some cases, the available fields may not be sufficient for the question. "
-                      "Use the result to construct a query for ask_synapse or explain why the question cannot be answered.")
-    :parameters
-    {:type "object"
-     :properties
-     {:table_id
-      {:type "string"
-       :description (str "By default, use asset view for table id "
-                         "unless user provides another id.")}}}
-    :required ["table_id"]}})
-
-(def ask_table_spec
-  {:type "function"
-   :function
-   {:name "ask_table"
-    :description (str "Use to query table with SQL to help answer a user question; "
-                      "query should include only searchable fields;"
-                      "a subset of valid SQL is allowed -- do not include update clauses.")
-    :parameters
-    {:type "object"
-     :properties
-     {:table_id {:type "string"
-                 :description "Table id, e.g. 'syn5464523"}
-      :query {:type "string"
-              :description "A valid SQL query."}}}}})
+(defn anthropic-tool-time
+  "Stub function"
+  [tool-use]
+  (let [tool-call {:id       (:id tool-use)
+                   :type     "function"
+                   :function {:name      (:name tool-use)
+                              :arguments (json/generate-string (:input tool-use))}}]
+    (tool-time tool-call)))
 
 (defn convert-tools-for-anthropic
   "Convert OpenAI tools schema to Anthropic tools schema"
@@ -527,23 +321,25 @@
                              (get-in [:function :parameters]))})
         openai-tools))
 
-(def tools
-  [curate_dataset_spec
-   get_knowledgegraph_schema_spec
-   ask_knowledgegraph_spec
-   enhance_curation_spec
-   get_queryable_fields_spec
-   ask_table_spec
-   call_extraction_agent_spec
-   ])
+(def search_tool_spec
+  "Example of a tool spec for a search tool; not used."
+  {:type "function"
+   :function
+   {:name "search"
+    :description "Search the web"
+    :parameters
+    {:type "object"
+     :properties
+     {:query
+      {:type "string"
+       :description "Search query"}}}
+    :required []}})
 
-(def anthropic-tools (convert-tools-for-anthropic tools))
+(def tools [search_tool_spec])
 
 ;;;;;;;;;;;;;;;;;;;;;
-;; Default chat
+;; Models
 ;;;;;;;;;;;;;;;;;;;;;
-
-;; MODELS
 
 (def openai-models
   "https://platform.openai.com/docs/models"
@@ -560,35 +356,52 @@
 (def anthropic-models
   "https://docs.anthropic.com/en/docs/about-claude/models"
   {:default "claude-3-5-sonnet-latest"
-   :models {"claude-3-5-sonnet-latest" {:label "Claude 3.5 Sonnet" 
+   :models {"claude-3-5-sonnet-latest" {:label "Claude 3.5 Sonnet"
                                         :context 200000}
             "claude-3-sonnet-20240229" {:label "Claude 3 Sonnet"
                                         :context 200000}}})
 
-(def OpenAIChatAgent 
+;;;;;;;;;;;;;;;;;;;;;
+;; Vanilla chat
+;;;;;;;;;;;;;;;;;;;;;
+
+(defn ask [provider prompt]
+  (->> prompt
+       (prompt-ai provider)
+       (parse-response provider)))
+
+(def openai-init-prompt [{:role "system" :content "You are a helpful assistant."}])
+
+(def openai-messages (atom openai-init-prompt))
+
+(def anthropic-messages (atom [])) ;; system prompt is not in messages
+
+(def OpenAIVanillaChat 
   (OpenAIProvider. "gpt-4o" 
-                   (new-chat-openai!) 
-                   tools 
+                   openai-messages
+                   nil 
                    tool-time))
 
-(def AnthropicChatAgent 
+(def AnthropicVanillaChat
   (AnthropicProvider. "claude-3-5-sonnet-latest" 
-                      (new-chat-anthropic!) 
-                      anthropic-tools 
+                      anthropic-messages 
+                      nil
                       anthropic-tool-time))
 
-(defn -main []
-  (setup)
-  (let [provider (if (= (@u :model-provider) "OpenAI") 
-                   OpenAIChatAgent
-                   AnthropicChatAgent)]
-    (println "Chat initialized. Your message:") 
-    (loop [prompt (read-line)]
-      (let [ai-reply (->> prompt
-                         (prompt-ai provider)
-                         (parse-response provider))]
-        (println "accent:" (ai-reply :content))
-        (when-not (:final ai-reply)
-          (print "user: ")
-          (flush)
-          (recur (read-line)))))))
+(def provider-agent 
+  (if (= (@u :model-provider) "OpenAI") 
+    OpenAIVanillaChat 
+    AnthropicVanillaChat))
+
+(defn chat [provider-agent]
+  (setup) 
+  (println "Chat initialized. Your message:") 
+  (loop [prompt (read-line)] 
+    (let [ai-reply (ask provider-agent prompt)] 
+      (println "assistant:" (ai-reply :content)) 
+      (when-not (:final ai-reply) 
+        (print "user: ") 
+        (flush) 
+        (recur (read-line))))))
+
+(defn -main [] (chat provider-agent))

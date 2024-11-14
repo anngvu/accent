@@ -3,35 +3,33 @@
 > [!WARNING]  
 > This is a **prototype** application.
 > Development is still working mitigating risks of using generative AI. 
-Our current target users are Sage staff or other data professionals, not (yet) general Synapse users.   
-
+Our current target users are data professionals.   
 
 ### Motivation
 
-Research communities supported by dedicated data managers receive the benefit of having data packaged and disseminated optimally. 
+#### For biomedical curators/data managers
+
+Research communities supported by dedicated data curators/managers receive the benefit of having data packaged and disseminated optimally for reuse. 
 Data managers themselves could benefit from tooling to facilitate their important and hard work of curating data, developing the data model, and facilitating data sharing in general. 
 And like with other knowledge work, including AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1]. 
 > Developers can also help with figuring out where AI can be inserted into workflows and how to design technology for doing that. 
 
-This is the proof-of-concept for such an application. 
-
-The design considered the different responsibilities of a data manager and if/how each can be prioritized for an assisted workflow. 
-There are many responsibilities[^2][^3], but the general list can be refined and ranked based on the work at Sage: 
-1. Data curation -- create, organize, QC, and publish data assets to the best advantage. 
+This is such an application. Some data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
+1. Data curation -- create, organize, QC, and publish FAIR/harmonized data assets to the best advantage. 
 2. Develop standards and data models. 
 3. Maintain data management plans and SOPs. 
 4. Facilitate data analysis/reuse and reporting for stakeholders, regulatory authorities, etc. 
 5. Oversee the integration of apps/new technologies and initiatives into data standards and structures. 
 
+<!-- #### And for everyone
 
-**To be clear, the Assisted Curation/Content ENhancement Tool is a proof-of-concept CLI tool only focuses on helping with the first two responsibilities.** 
-In its first iteration, ACCENT narrows down the scope of the curation assistance even further, to dataset curation for the NF-OSI use case. 
-The idea is to work out the "wrapper" interface into a usable and productive workflow first. 
+Everyone is a curator and could benefit from AI-assisted curation. This open-source application originally developed for biomedical data curation is actually quite reusable for other domains and personal use cases. Some "off-label" use cases will be demonstrated. -->
+
 
 ### Usage
 
-With more power comes the need to be more "responsible". 
-Unlike interacting with an LLM in the default cloud interface provided by a model provider, the interface here will provide a more powerful infrastructure such as prompts and logic already optimized to project-specific workflows, direct API access to relevant systems (Synapse), local file and database system access, and other tools/agents to accomplish various tasks. But the infrastructure will also need to include guardrails.
+With more power comes more responsibility. 
+Unlike interacting with generative AI in the default web interface, the application infrastructure here includes prompts and logic already optimized to project-specific workflows, direct API access to relevant platforms (Synapse), the local file system, configured databases, and additional tools/agents to accomplish various tasks. This infrastructure will also need to include guardrails.
 
 Until this is released as a .jar, you do need some Clojure tooling. 
 
@@ -61,21 +59,24 @@ Tip for usage: Trying to reduce costs by switching to a cheaper model for some t
   - To use, must have `ANTHROPIC_API_KEY` in env or set in config.
   - The default model is Claude Sonnet 3.5.
 
-#### Run your preferred UI
+#### Run your preferred UI and specialized curation agent
 
 > [!NOTE]  
 > Currently, there are some tradeoffs between the terminal vs web UI. The web UI will have some features that the terminal will not, such as showing figures. On the other hand, web UI only works with OpenAI for now.
 
-For the terminal:
-- `lein run -m accent.chat`
+##### For Synapse curation
 
-For the web UI:
+The **web UI is highly recommended**:
 - `lein run -m accent.app`
-- Go to http://localhost:3000
 
-#### Demos / tutorials for various scenarios (WIP)
+For the terminal:
+- `lein run -m agents.syndi`
 
-Links and materials will be provided when these demos are available:
+<!--  ##### For personal knowledge curation 
+
+TBD. -->
+
+#### Demos / tutorials for various scenarios
 
 - **Assisted curation workflow** - You are preparing some kind of data asset for Synapse (e.g. a dataset).
 - **Data model exploration and development** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
@@ -128,14 +129,11 @@ Nothing more is planned until after the Evaluation (below).
 
 ### Evaluation
 
-There are ideas for other helper workflows and functionality, but these are dependent on first round of the proof-of-concept feedback, in case this is not the right approach/the design needs to change significantly. 
-To inform whether this actually benefits data management work, we need to to evaluate the proof-of-concept in several ways. 
-We would have to ask a user, "How would you compare using this versus trying to accomplish **the same work goal** using a different workflow that": 
-1. *Doesn't incorporate* any LLM and does things manually, with custom scripting, or with some other non-AI app.
-2. Incorporates ChatGPT but via the default online chat interface.
-3. Incorporates LLM/multiple LLMs through a different custom interface/solution.
-
-There is also workflow-specific research needed. To be continued...
+Feedback is currently being gathered with curators who are being trained for integrating this into their workflows. 
+The comparisons will be between workflows that:
+1. *Doesn't incorporate* any LLM and does things manually, maybe with custom scripting, or with some other non-AI app.
+2. Incorporates generative AI but only via the default online chat interface.
+3. Incorporates generative AI through a different custom interface/solution.
 
 
 [^1]: https://mitsloan.mit.edu/ideas-made-to-matter/how-generative-ai-can-boost-highly-skilled-workers-productivity
