@@ -76,9 +76,7 @@ For the terminal:
 
 TBD. -->
 
-#### Demos / tutorials for various scenarios (WIP)
-
-Links and materials will be provided when these demos are available:
+#### Demos / tutorials for various scenarios
 
 - **Assisted curation workflow** - You are preparing some kind of data asset for Synapse (e.g. a dataset).
 - **Data model exploration and development** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
