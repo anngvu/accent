@@ -28,8 +28,8 @@ Everyone is a curator and could benefit from AI-assisted curation. This open-sou
 
 ### Usage
 
-With more power comes the need to be more "responsible". 
-Unlike interacting with an LLM in the default cloud interface provided by a model provider, the interface here will provide a more powerful infrastructure such as prompts and logic already optimized to project-specific workflows, direct API access to relevant systems (Synapse), local file and database system access, and other tools/agents to accomplish various tasks. But the infrastructure will also need to include guardrails.
+With more power comes more responsibility. 
+Unlike interacting with generative AI in the default web interface, the application infrastructure here includes prompts and logic already optimized to project-specific workflows, direct API access to relevant platforms (Synapse), the local file system, configured databases, and additional tools/agents to accomplish various tasks. This infrastructure will also need to include guardrails.
 
 Until this is released as a .jar, you do need some Clojure tooling. 
 
