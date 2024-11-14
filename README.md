@@ -7,7 +7,7 @@ Our current target users are data professionals.
 
 ### Motivation
 
-### For biomedical curators/data managers
+#### For biomedical curators/data managers
 
 Research communities supported by dedicated data curators/managers receive the benefit of having data packaged and disseminated optimally for reuse. 
 Data managers themselves could benefit from tooling to facilitate their important and hard work of curating data, developing the data model, and facilitating data sharing in general. 
@@ -21,7 +21,7 @@ This is such an application. Some data management responsibilities[^2][^3] prior
 4. Facilitate data analysis/reuse and reporting for stakeholders, regulatory authorities, etc. 
 5. Oversee the integration of apps/new technologies and initiatives into data standards and structures. 
 
-<!-- ### And for everyone
+<!-- #### And for everyone
 
 Everyone is a curator and could benefit from AI-assisted curation. This open-source application originally developed for biomedical data curation is actually quite reusable for other domains and personal use cases. Some "off-label" use cases will be demonstrated. -->
 
