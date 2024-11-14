@@ -72,9 +72,9 @@ The **web UI is highly recommended**:
 For the terminal:
 - `lein run -m agents.syndi`
 
-##### For personal knowledge curation 
+<!--  ##### For personal knowledge curation 
 
-TBD.
+TBD. -->
 
 #### Demos / tutorials for various scenarios (WIP)
 
