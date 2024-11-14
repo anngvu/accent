@@ -129,14 +129,11 @@ Nothing more is planned until after the Evaluation (below).
 
 ### Evaluation
 
-There are ideas for other helper workflows and functionality, but these are dependent on first round of the proof-of-concept feedback, in case this is not the right approach/the design needs to change significantly. 
-To inform whether this actually benefits data management work, we need to to evaluate the proof-of-concept in several ways. 
-We would have to ask a user, "How would you compare using this versus trying to accomplish **the same work goal** using a different workflow that": 
-1. *Doesn't incorporate* any LLM and does things manually, with custom scripting, or with some other non-AI app.
-2. Incorporates ChatGPT but via the default online chat interface.
-3. Incorporates LLM/multiple LLMs through a different custom interface/solution.
-
-There is also workflow-specific research needed. To be continued...
+Feedback is currently being gathered with curators who are being trained for integrating this into their workflows. 
+The comparisons will be between workflows that:
+1. *Doesn't incorporate* any LLM and does things manually, maybe with custom scripting, or with some other non-AI app.
+2. Incorporates generative AI but only via the default online chat interface.
+3. Incorporates generative AI through a different custom interface/solution.
 
 
 [^1]: https://mitsloan.mit.edu/ideas-made-to-matter/how-generative-ai-can-boost-highly-skilled-workers-productivity
