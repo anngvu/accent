@@ -1,4 +1,4 @@
-(ns curate.dataset
+(ns curate.synapse
   (:gen-class)
   (:require [babashka.http-client :as client]
             [cheshire.core :as json]
@@ -244,6 +244,72 @@
       (recur client (.getParentId entity)))))
 
 
+;;;;;;;;;;;;;;;;;;;;
+;; Create resources
+;;;;;;;;;;;;;;;;;;;;
+
+(defn create-folder
+  "Create a new folder in Synapse"
+  [^SynapseClient client folder-name parent-id]
+  (let [folder (doto (Folder.)
+                (.setName folder-name)
+                (.setParentId parent-id))]
+    (.createEntity client folder)))
+
+
+(defn as-annotation-type [value]
+  (cond
+    (string? value) "STRING"
+    (instance? Double value) "DOUBLE"
+    (integer? value) "LONG"
+    ;;(instance? java.util.Date value) "TIMESTAMP_MS"
+    (boolean? value) "BOOLEAN"
+    :else "STRING"))
+
+(defn as-annotations [annotations-map]
+  (reduce-kv (fn [m k v]
+               (let [value-type (as-annotation-type v)]
+                 (assoc m k {"type" value-type
+                             "value" (if (coll? v) v [v])})))
+             {}
+             annotations-map))
+
+(defn get-annotations
+  "Retrieves annotations for a Synapse entity via REST API"
+  [client entity-id]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/%s/annotations2" repo-endpoint entity-id)
+        bearer-token (.getAccessToken client)
+        response (http/get url {:headers {"Authorization" (str "Bearer " bearer-token)}})]
+    (->(:body response)
+       (json/parse-string true))))
+
+
+(defn update-annotations
+  "Updates annotations for a Synapse entity via REST API
+   synapse-client: Initialized Synapse client instance
+   entity-id: String ID of entity (e.g. 'syn123')
+   annotations: Map of annotation key-values to set"
+  [client entity-id annotations]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        bearer-token (.getAccessToken client)
+        url (format "%s/entity/%s/annotations2" repo-endpoint entity-id)
+        response (http/put url
+                  {:headers {"Authorization" (str "Bearer " bearer-token)
+                            "Content-Type" "application/json"}
+                   :body (json/generate-string annotations)})]
+    response))
+
+(defn set-annotations
+  "Updates annotations; annotations should be a map of key-value pairs."
+  [client entity-id annotations]
+  (let [current (get-annotations client entity-id)
+        ann-current (current :annotations)]
+    (->>(as-annotations annotations)
+        (merge ann-current)
+        (assoc current :annotations)
+        (update-annotations client entity-id))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Follow-up processing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -331,36 +397,6 @@
    :contributor (mapv #(get-user-name client %) (get-contributor client scope asset-view)) ;; alternatively, keep as user ids
    :accessType (label-access client scope)
    })
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; UI
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; TODO: move this to a separate file
-
-(defn coerce-to-boolean [input]
-  (let [true-variants #{"Y" "y" "yes" "Yes" "YES"}]
-    (contains? true-variants input)))
-
-
-(defn confirm-prompt
-  [placeholder]
-  (println placeholder)
-  (let [response (read-line)]
-    (coerce-to-boolean response)))
-
-
-;;(defn confirm-prompt-tui
-;;  [placeholder]
-;;  (b/gum :confirm [placeholder] :as :bool))
-
-
-(defn confirm-submit-meta
-  "Get confirmation via some UI"
-  []
-  (confirm-prompt "Submit this metadata? (Y/n)"))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main workflows

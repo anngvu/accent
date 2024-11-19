@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :as chat]
-            [curate.dataset :refer [syn curate-dataset get-table-column-models query-table]]
+            [curate.synapse :refer [syn curate-dataset get-table-column-models query-table]]
             [database.dlvn :refer [show-reference-schema ask-knowledgegraph get-portal-dataset-props as-schema]]
             [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
             [babashka.http-client :as client]

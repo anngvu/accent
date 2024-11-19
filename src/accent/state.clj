@@ -5,7 +5,7 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [database.dlvn :refer [init-db! run-query conn unique-dccs get-asset-view]]
-            [curate.dataset :refer [new-syn]]))
+            [curate.synapse :refer [new-syn]]))
 
 
 (defonce u ;; user config
