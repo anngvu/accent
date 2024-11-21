@@ -461,9 +461,9 @@
   "There are two possible entrypoints to curating dataset -- the more specific one is providing the dataset folder,
   but it's possible to provide the parent project as well. Also, what's expected is limited to marked folders,
   even if conceptually it is valid for a 'dataset' to be a file, a table, an entire project, etc."
-  [^SynapseClient client scope asset-view dataset-props]
+  [^SynapseClient client scope asset-view]
    (let [entity (.getEntityById client scope)]
      (cond
        (instance? Project entity) { :type :redirect :result (scope-dataset-folders-report client scope asset-view) }
-       (instance? Folder entity) { :type :success :result (curate-dataset-folder client scope asset-view dataset-props) }
+       (instance? Folder entity) { :type :success :result (curate-dataset-folder client scope asset-view) }
        :else { :type :error :result "Curation workflow requires given scope to be a Project or a Folder."})))

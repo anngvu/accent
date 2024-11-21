@@ -198,11 +198,11 @@
   3) store dataset intermediate for reference 4) return various data sources with appropriate prompting"
   [{:keys [scope_id asset_view]}]
   (let [schema (get-entity-schema @syn scope_id)
-        result (curate-dataset @syn scope_id asset_view schema)]
+        result (curate-dataset @syn scope_id asset_view)]
     (if (= :success (result :type))
       (do 
         (swap! products assoc-in [:dataset :intermediate] result)
-        {:result (str "Retrieved entity schema and initial curated data; to complete curation, transform the data and fill in schema properties before staging the curated product.\n" 
+        {:result (str "Retrieved entity schema and initial curated data; your task is transform the data and complete missing properties, adhering to the target schema so that the data can be sent to staging for review.\n"
                   "Target schema:\n" schema "\n\nInitial curated data:\n" (result :result))
          :type :success})
       result)))
