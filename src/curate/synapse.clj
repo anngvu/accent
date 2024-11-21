@@ -1,6 +1,6 @@
 (ns curate.synapse
   (:gen-class)
-  (:require [babashka.http-client :as client]
+  (:require [babashka.http-client :as http]
             [cheshire.core :as json]
             [clojure.string :as str]
             [clojure.data.csv :as csv]
@@ -187,7 +187,7 @@
   [^SynapseClient client id]
   (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
         temp-url (.getFileHandleTemporaryUrl client file-handle-id)]
-    (client/get temp-url)))
+    (http/get temp-url)))
 
 
 (defn download-file
@@ -203,10 +203,10 @@
 
 (defn get-stored-manifest
   "Get data from a manifest file associated with a scope and stored in Synapse directly within the scope.
-  Alternative usage to consider:
-  If the manifest is stored in an alternate location (not directly within the sccope), use `get-data-url`.
-  If no manifest file stored at all, use annotations (assuming annotations were applied).
-  If the manifest is stored within scope, but there are ACT-controlled restrictions."
+  Alternative cases to consider:
+  - Manifest is stored in an alternate location (not directly within the scope), use `get-data-url`.
+  - No manifest file stored at all, use annotations (assuming annotations were applied).
+  - Manifest is stored within scope but there are ACT-controlled restrictions."
   [^SynapseClient client scope asset-view]
   (if-let [manifest-id (scope-manifest client scope asset-view)]
     (download-file client manifest-id (str scope "-manifest.csv"))
@@ -243,10 +243,49 @@
       id
       (recur client (.getParentId entity)))))
 
+(defn get-children
+  [^SynapseClient client id]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/children" repo-endpoint)
+        bearer-token (.getAccessToken client)
+        entity-children-request {:parentId id
+                                 :nextPageToken nil
+                                 :includeTypes ["file" "folder"]
+                                 :includeTotalChildCount true
+                                 :includeSumFileSizes true}
+        response (http/post url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                           "Content-Type" "application/json"}
+                                 :body (json/generate-string entity-children-request)} )]
+    (->(:body response)
+       (json/parse-string))))
 
-;;;;;;;;;;;;;;;;;;;;
-;; Create resources
-;;;;;;;;;;;;;;;;;;;;
+(defn get-registered-schema
+  [schema-info-map]
+  (let [registered-base "https://repo-prod.prod.sagebase.org/repo/v1/schema/type/registered/"
+        id (schema-info-map "$id")
+        url (str registered-base id)]
+    (:body (http/get url))))
+
+(defn get-schema-binding
+  [^SynapseClient client id]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/%s/schema/binding" repo-endpoint id)
+        bearer-token (.getAccessToken client)
+        response (http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                          "Content-Type" "application/json"}} )]
+    (->(:body response)
+       (json/parse-string))))
+
+(defn get-entity-schema
+  [^SynapseClient client id]
+  (->(get-schema-binding client id)
+     (get "jsonSchemaVersionInfo")
+     (get-registered-schema)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Create folders and annotations
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn create-folder
   "Create a new folder in Synapse"
@@ -255,7 +294,6 @@
                 (.setName folder-name)
                 (.setParentId parent-id))]
     (.createEntity client folder)))
-
 
 (defn as-annotation-type [value]
   (cond
@@ -309,6 +347,8 @@
         (merge ann-current)
         (assoc current :annotations)
         (update-annotations client entity-id))))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Follow-up processing
@@ -398,25 +438,29 @@
    :accessType (label-access client scope)
    })
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Main workflows
-;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Common workflow abstractions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn schema-properties [schema-string] (keys ((json/parse-string schema-string) "properties")))
 
 (defn curate-dataset-folder
-  "Implements a deterministic first pass over a dataset folder
-  to compile custom and system meta, then returning results for AI enhancement."
-  [^SynapseClient client scope asset-view dataset-props]
-  (let [m-file (get-stored-manifest client scope asset-view)
-        m' (derive-from-manifest m-file dataset-props)
-        s' (derive-from-system client scope asset-view)]
-    (merge m' s')))
+  "Implements a deterministic first pass over a dataset folder to gather several sources of meta:
+   user meta (annotations) and system meta (properties), returning results for downstream processing (e.g. AI enhancement).
+   The different-arity versions mainly vary in whether dataset-props is used for further refinement."
+  ([^SynapseClient client scope asset-view]
+   (curate-dataset-folder client scope asset-view nil))
+  ([^SynapseClient client scope asset-view dataset-props]
+   (let [m-file (get-stored-manifest client scope asset-view)
+         m' (if dataset-props (derive-from-manifest m-file dataset-props) (summarize-manifest m-file))
+         s' (derive-from-system client scope asset-view)]
+    (merge s' m'))))
 
 
 (defn curate-dataset
-  "Currently what's expected in workflow is limited to marked folders,
-  even if conceptually it is valid for the input to be a single file,
-  a single table, an entire project with various entities, etc."
+  "There are two possible entrypoints to curating dataset -- the more specific one is providing the dataset folder,
+  but it's possible to provide the parent project as well. Also, what's expected is limited to marked folders,
+  even if conceptually it is valid for a 'dataset' to be a file, a table, an entire project, etc."
   [^SynapseClient client scope asset-view dataset-props]
    (let [entity (.getEntityById client scope)]
      (cond
