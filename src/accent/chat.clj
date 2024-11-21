@@ -82,14 +82,14 @@
       (.write wr json-str))))
 
 (defn save-chat-offer
-  []
+  [messages]
   (print (str "If you would like to save the chat data before the program exits, "
               "please type 'Yes' exactly."))
   (println)
   (flush)
   (when (= "Yes" (read-line))
     (let [filename (str "accent_" ".json")]
-      (save-chat "chat.json")
+      (save-chat messages "chat.json")
       (flush)
       (println "Saved your chat as" filename "!")))
   (print "Please exit now. Program must be restarted to start a new chat."))
@@ -98,13 +98,13 @@
   "When context limit reached let user know and present limited option to save chat.
   TODO: ability to start new chat and carry over a summary of last chat,
   requires proactive interception with a reasonable buffer before context limit reached."
-  [last-response]
+  [messages last-response]
   (println)
   (println "-- NOTIFICATION --")
   (println
    (str "Hey, it looks like " (rand-nth oops)
         ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
-  (save-chat-offer))
+  (save-chat-offer messages))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper Fns for Streaming
