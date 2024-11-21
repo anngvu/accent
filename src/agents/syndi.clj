@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :as chat]
-            [curate.synapse :refer [new-syn syn curate-dataset get-table-column-models get-entity-schema query-table set-annotations]]
+            [curate.synapse :refer [new-syn syn curate-dataset create-folder get-table-column-models get-entity-schema query-table set-annotations]]
             [database.dlvn :refer [show-reference-schema ask-knowledgegraph as-schema]]
             [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
             [babashka.http-client :as client]
@@ -21,8 +21,8 @@
 
 (new-syn (@u :sat))
 
+;; Stores intermediate and final results for curated data products such as datasets, figures, etc.
 (defonce products
-  "Stores intermediate and final results for curated data products such as datasets, figures, etc."
   (atom nil))
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -40,12 +40,15 @@
      {:scope_id
       {:type "string"
        :description "The scope id to use, e.g. 'syn12345678'"}
+      :asset_view
+      {:type "string"
+       :description "The asset view id to use, which should have pattern syn[0-9]+"}
       :manifest_id
       {:type "string"
        :description (str "The manifest id, e.g. 'syn224466889'."
                          "While the manifest can be automatically discovered in most cases,"
                          " when not in the expected location the id will need to be provided by the user.")}}}
-    :required ["scope_id"] }})
+    :required ["scope_id" "asset_view"] }})
 
 (def curate_external_entity_spec
   {:type "function"
@@ -193,11 +196,9 @@
 (defn wrap-curate-dataset
   "Implement pipeline and prompt engineering to coordinate curation: 1) get dataset schema, 2) call curate_dataset for some preprocessing, 
   3) store dataset intermediate for reference 4) return various data sources with appropriate prompting"
-  [args]
-  (let [id (args :scope_id)
-        asset-view (@u :asset-view)
-        schema (get-entity-schema @syn id)
-        result (curate-dataset @syn scope asset-view schema)]
+  [{:keys [scope_id asset_view]}]
+  (let [schema (get-entity-schema @syn scope_id)
+        result (curate-dataset @syn scope_id asset_view schema)]
     (if (= :success (result :type))
       (do 
         (swap! products assoc-in [:dataset :intermediate] result)
@@ -209,8 +210,8 @@
 (defn wrap-stage-curated
   "Stage the curated entity by displaying it to the user."
   [{:keys [product_type metadata]}]
+  (swap! products assoc-in [(keyword product_type) :staging] metadata)
   {:result "Curated entity has been rendered in staging for review. Confirm with user if it should be stored using `commit_curated`."
-   (swap! products assoc-in [(keyword product_type) :staging] metadata)
    :type   :success})
 
 (defn wrap-commit-curated
@@ -218,7 +219,7 @@
   [{:keys [metadata storage_id storage_scope storage_name]}]
   (let [ann-map (json/parse-string metadata)
         name (if storage_name storage_name (str "Name"))
-        id (if (= storage_scope "entity") storage_id (create-folder @syn name storage_id))]
+        id (if (= storage_scope "entity") storage_id (create-folder @syn name storage_id))
         response (set-annotations @syn id ann-map)]
     (if (= 200 (:status response))
       {:result "Metadata stored successfully."
