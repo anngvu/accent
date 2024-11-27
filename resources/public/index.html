@@ -115,6 +115,9 @@
             } else if (message.type === 'assistant-end-message') {
                 const lastMessage = contentDiv.lastElementChild;
                 lastMessage.innerHTML += message.content;
+            } else if (message.type === 'plot-message') {
+                const canvasDiv = document.getElementById('canvas');
+                canvasDiv.innerHTML = message.ui;
             } else {
                 
             }        

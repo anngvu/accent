@@ -241,10 +241,10 @@
   (call-extraction-agent input_source input_representation json_schema json_schema_representation)))
 
 (defn wrap-get-queryable-fields
-  [{:keys [table_id] :or {table_id (@u :asset-view)}}]
-  (let [cols (get-table-column-models @syn table_id)
-        table-schema (as-schema cols (@u :dcc))]
-    {:result (str table-schema)
+  [{:keys [table_id]}]
+  (let [cols (get-table-column-models @syn table_id)]
+        ;;table-schema (as-schema cols (@u :dcc))]
+    {:result (str cols)
      :type :success}))
 
 (defn wrap-query-table

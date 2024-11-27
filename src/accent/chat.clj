@@ -195,7 +195,8 @@
        (if clients
         (do
           (doseq [client @clients]
-            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")})))
+            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")}))
+            (httpkit/send! client (json/generate-string {:type "plot-message" :ui (str "<div style='background-color: #" (format "%06x" (rand-int 0xFFFFFF)) ";'>hi</div>")})))          
           (stream-response this msg forced-tool clients)) 
          (parse-response this (prompt-ai this msg forced-tool)))))
   (get-last-text [this] "TODO")
