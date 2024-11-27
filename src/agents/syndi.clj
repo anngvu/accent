@@ -58,13 +58,18 @@
     :parameters
     {:type "object"
      :properties
-     {:source_url
+     {:input_source
       {:type "string"
-       :description "Source URL where entity data can be found."}
+       :description (str "Source characterizing or representing the external entity; "
+                         "it can be a user-provided text passage describing the entity, web page, filepath, or database ID (e.g. 'PMC134567').")}
+     :input_representation
+      {:type "string"
+       :enum ["text" "link" "filepath" "PMCID"]
+       :description "Labels the input source type to optimize curation."}
       :collection_id
       {:type "string"
-       :description "A Synapse id with pattern syn[0-9]+ for the collection container."}}}
-    :required ["source_url" "collection_id"] }})
+       :description "The collection container id on Synapse with pattern syn[0-9]+."}}}
+    :required ["input_source" "input_representation" "collection_id"] }})
 
 (def stage_curated_spec
   {:type "function"
@@ -94,7 +99,7 @@
        :description "JSON string of the curated product metadata."}
       :storage_id
       {:type "string"
-       :description "A Synapse id; for updates, the id belongs to an existing entity, while for new entity metadata the id must be the container/collection id."}
+       :description "A Synapse id; for updates, the id is an existing entity, while for new entity metadata the id must be the container/collection id."}
       :storage_scope
       {:type "string"
        :enum ["entity" "collection"]
@@ -163,6 +168,7 @@
 
 (def tools
   [curate_dataset_spec
+   curate_external_entity_spec
    commit_curated_spec
    stage_curated_spec
    get_queryable_fields_spec
@@ -226,6 +232,13 @@
        :type :success}
       {:result (str "Failed to store, server returned status " (:status response))
        :type :error})))
+
+(defn wrap-curate-external-entity
+  "Workflow abstraction that composes extraction agent, creation of a folder, and storage of metadata."
+  [{:keys [input_source input_representation collection_id]}]
+  (let [json_schema (get-entity-schema @syn collection_id)
+        json_schema_representation "text"]
+  (call-extraction-agent input_source input_representation json_schema json_schema_representation)))
 
 (defn wrap-get-queryable-fields
   [{:keys [table_id] :or {table_id (@u :asset-view)}}]
