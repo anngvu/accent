@@ -64,7 +64,7 @@
             </div>
         </div>
         <div class="container p-6 w-3/5 h-full">
-            <div id="canvas" class="h-full bg-gray-100 p-4 rounded-md">
+            <div id="canvas" class="h-full bg-gray-100 p-4 rounded-md flex items-center justify-center">
                 <div id="vis"></div>
             </div>
         </div>
@@ -95,48 +95,17 @@
             }
         }
 
-        const initialSpec = {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-            "description": "An initial bar chart",
-            "data": {
-                "values": [
-                { "a": "A", "b": 28 },
-                { "a": "B", "b": 55 },
-                { "a": "C", "b": 43 }
-                ]
-            },
-            "mark": "bar",
-            "encoding": {
-                "x": { "field": "a", "type": "ordinal" },
-                "y": { "field": "b", "type": "quantitative" }
-            }
-        };
-
-        const updatedSpec = {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-            "description": "An initial bar chart",
-            "data": {
-                "values": [
-                { "a": "A", "b": 5 },
-                { "a": "B", "b": 5 },
-                { "a": "C", "b": 5 }
-                ]
-            },
-            "mark": "bar",
-            "encoding": {
-                "x": { "field": "a", "type": "ordinal" },
-                "y": { "field": "b", "type": "quantitative" }
-            }
-        };
-
-        function updateVisualization(spec) {
+        function updateVegaViz(spec) {
             vegaEmbed('#vis', spec)
                 .then(() => console.log('Visualization updated.'))
                 .catch(console.error);
         }
 
-        
-        updateVisualization(initialSpec);
+        function updateViz(spec) {
+            const vizDiv = document.getElementById('vis');
+            vizDiv.innerHTML = '';
+            vizDiv.innerHTML = spec;
+        }
 
         ws.onopen = function() {
             console.log('WebSocket connection opened');
@@ -163,10 +132,11 @@
                 lastMessage.innerHTML += message.content;
             } else if (message.type === 'viz-message') {
                 try {
-                    // const newSpec = JSON.parse(message.data); // JSON data conforming to Vega-Lite spec
-                    updateVisualization(updatedSpec);
+                    if(message.dataspec === 'vega-lite') updateVegaViz(message.data);
+                    if(message.dataspec === 'viz') updateViz(message.data);
                 } catch (error) {
-                    console.error('Invalid spec received:', message.data);
+                    console.error('Invalid data received:', message.data);
+                    updateViz('Last visualization could not be rendered');
                 }
             } else {
                 

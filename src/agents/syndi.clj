@@ -143,14 +143,14 @@
   {:type "function"
    :function
    {:name "call_viz_agent"
-    :description "Call visualization agent with the forwarded user request and some data to plot in the UI."
+    :description "Use visualization agent to plot data in the UI. Data provided must conform to the Vega-Lite specification"
     :parameters
     {:type "object"
      :properties
      {:request {:type "string"
-                :description "A summary of the user request to help the agent select and customize the appropriate visualization."}
+                :description "A summary of the user's visualization intent to help correct or enhance the output if needed and for logging purposes."}
       :data {:type "string"
-             :description "Data in csv format"}}}}})
+             :description "JSON parseable string of the vis data in the Vega-Lite spec. Example: `{\"data\":{\"values\":[{\"a\":\"C\",\"b\":2},{\"a\":\"C\",\"b\":7},{\"a\":\"C\",\"b\":4},{\"a\":\"D\",\"b\":1},{\"a\":\"D\",\"b\":2},{\"a\":\"D\",\"b\":6},{\"a\":\"E\",\"b\":8},{\"a\":\"E\",\"b\":4},{\"a\":\"E\",\"b\":7}]},\"mark\":\"bar\",\"encoding\":{\"y\":{\"field\":\"a\",\"type\":\"nominal\"},\"x\":{\"aggregate\":\"average\",\"field\":\"b\",\"type\":\"quantitative\",\"axis\":{\"title\":\"Average of b\"}}}}`"}}}}})
 
 (def call_knowledgebase_agent_spec
   {:type "function"
@@ -217,11 +217,12 @@
   "Stage the curated entity by displaying it to the user."
   [{:keys [product_type metadata]}]
   (swap! products assoc-in [(keyword product_type) :staging] metadata)
-  {:result "Curated entity has been rendered in staging for review. Confirm with user if it should be stored using `commit_curated`."
+  {:result "Curated entity has been sent to staging for review. Confirm with user if it should be stored using `commit_curated`."
+   :data metadata
+   :dataspec "staging"
    :type   :success})
 
 (defn wrap-commit-curated
-  "TODO: Stub"
   [{:keys [metadata storage_id storage_scope storage_name]}]
   (let [ann-map (json/parse-string metadata)
         name (if storage_name storage_name (str "Name"))
@@ -243,14 +244,13 @@
 (defn wrap-get-queryable-fields
   [{:keys [table_id]}]
   (let [cols (get-table-column-models @syn table_id)]
-        ;;table-schema (as-schema cols (@u :dcc))]
+        ;;table-schema (as-schema cols (@u :dcc))] ;; uses the knowledge graph, and integration is being refactored
     {:result (str cols)
      :type :success}))
 
 (defn wrap-query-table
   [{:keys [table_id query]}]
-  {:result (->> (query-table @syn table_id query)
-                (str))
+  {:result (str (query-table @syn table_id query))
    :type   :success})
 
 (defn wrap-call-extraction-agent
@@ -260,17 +260,10 @@
       (get-first-message-content)))
 
 (defn wrap-call-viz-agent
-  "TODO: Stub"
   [{:keys [request data]}]
   {:result (str "Visualization added.")
-   :data {"$schema" "https://vega.github.io/schema/vega-lite/v5.json"
-          :description "A bar chart"
-          :data {:values [{:a "A", :b (rand-int 100)}
-                          {:a "B", :b (rand-int 100)}
-                          {:a "C", :b (rand-int 100)}]}
-          :mark "bar"
-          :encoding {:x {:field "a", :type "ordinal"}
-                     :y {:field "b", :type "quantitative"}}}
+   :data data
+   :dataspec "vega-lite"
    :type :success})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -324,12 +317,12 @@
   [{:role "system" 
     :content (str "You are a data professional who helps users with data product curation, management, and analysis on the Synapse platform."
                   "Your name is Syndi (pronounced like 'Cindy')."
-                  "To establish crucial context and provide effective help, always ask users about a data coordinating center (DCC) they may be affiliated with, " 
+                  "To establish crucial context and provide best help, always ask users about a data coordinating center (DCC) they may be affiliated with " 
                   ;; "ascertain the DCC name and asset view by checking with the knowledgebase agent,"
                   "and proactively suggest tools and workflows. Common workflows include:\n"
                   "- curating data products already in Synapse\n"
-                  "- adding (meta)data for data products outside of Synapse into Synapse\n"
-                  "- querying tables within Synapse to answer questions and visualize summary data\n")}])
+                  "- curating (meta)data for data products outside of Synapse into Synapse collections\n"
+                  "- querying tables within Synapse to answer questions and visualize data\n")}])
 
 (def openai-messages (atom openai-init-prompt))
 
