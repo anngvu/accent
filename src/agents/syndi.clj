@@ -263,6 +263,14 @@
   "TODO: Stub"
   [{:keys [request data]}]
   {:result (str "Visualization added.")
+   :data {"$schema" "https://vega.github.io/schema/vega-lite/v5.json"
+          :description "A bar chart"
+          :data {:values [{:a "A", :b (rand-int 100)}
+                          {:a "B", :b (rand-int 100)}
+                          {:a "C", :b (rand-int 100)}]}
+          :mark "bar"
+          :encoding {:x {:field "a", :type "ordinal"}
+                     :y {:field "b", :type "quantitative"}}}
    :type :success})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
