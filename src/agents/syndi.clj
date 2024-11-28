@@ -1,15 +1,12 @@
 (ns agents.syndi
   (:gen-class)
-  (:require [accent.state :refer [setup u]]
+  (:require [accent.state :refer [u]]
             [accent.chat :as chat]
             [curate.synapse :refer [new-syn syn curate-dataset create-folder get-table-column-models get-entity-schema query-table set-annotations]]
-            [database.dlvn :refer [show-reference-schema ask-knowledgegraph as-schema]]
             [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
-            [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
-            [clojure.java.io :as io]
-            [org.httpkit.server :as httpkit]
+            [hiccup.core :as hiccup]
             [com.brunobonacci.mulog :as mu]))
 
 ;; Set up
@@ -179,8 +176,6 @@
 
 (def anthropic-tools (chat/convert-tools-for-anthropic tools))
 
-;; util
-
 (defn get-first-message-content
   "Parses an OpenAI completions response"
   [response-map]
@@ -189,6 +184,26 @@
           parsed-body (json/parse-string body true)
           first-choice (first (:choices parsed-body))]
       (get-in first-choice [:message :content]))))
+
+(defn generate-dataset-card
+  [data]
+  [:div.w-96.mx-auto.p-6.bg-white.shadow-lg
+   (for [[key value] data]
+     (when-not (#{"headers"} key)
+       [:div.mb-4
+        [:h3.text-lg.font-semibold.text-gray-800 (name key)]
+        (if (sequential? value)
+          [:ul.list-disc.pl-5.text-gray-700
+           (for [v value]
+             [:li v])]
+          [:p.text-gray-700 value])]))
+   (when (seq (:attributes data))
+     [:div.mb-4
+      [:h3.text-lg.font-semibold.text-gray-800 "Attributes"]
+      [:ul.list-disc.pl-5.text-gray-700
+       (for [[key value] (:attributes data)]
+         [:li (str (name key) ": " value)])]])
+   ])
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Tool call wrappers
@@ -217,9 +232,9 @@
   "Stage the curated entity by displaying it to the user."
   [{:keys [product_type metadata]}]
   (swap! products assoc-in [(keyword product_type) :staging] metadata)
-  {:result "Curated entity has been sent to staging for review. Confirm with user if it should be stored using `commit_curated`."
-   :data metadata
-   :dataspec "staging"
+  {:result "Curated entity has been staged for review. Confirm with user if it should be stored using `commit_curated`."
+   :data (hiccup/html (generate-dataset-card (json/parse-string metadata)))
+   :dataspec "viz"
    :type   :success})
 
 (defn wrap-commit-curated
