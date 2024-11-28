@@ -6,7 +6,6 @@
             [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
             [cheshire.core :as json]
             [clojure.string :as str]
-            [hiccup.core :as hiccup]
             [com.brunobonacci.mulog :as mu]))
 
 ;; Set up
@@ -185,26 +184,6 @@
           first-choice (first (:choices parsed-body))]
       (get-in first-choice [:message :content]))))
 
-(defn generate-dataset-card
-  [data]
-  [:div.w-96.mx-auto.p-6.bg-white.shadow-lg
-   (for [[key value] data]
-     (when-not (#{"headers"} key)
-       [:div.mb-4
-        [:h3.text-lg.font-semibold.text-gray-800 (name key)]
-        (if (sequential? value)
-          [:ul.list-disc.pl-5.text-gray-700
-           (for [v value]
-             [:li v])]
-          [:p.text-gray-700 value])]))
-   (when (seq (:attributes data))
-     [:div.mb-4
-      [:h3.text-lg.font-semibold.text-gray-800 "Attributes"]
-      [:ul.list-disc.pl-5.text-gray-700
-       (for [[key value] (:attributes data)]
-         [:li (str (name key) ": " value)])]])
-   ])
-
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Tool call wrappers
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -233,9 +212,9 @@
   [{:keys [product_type metadata]}]
   (swap! products assoc-in [(keyword product_type) :staging] metadata)
   {:result "Curated entity has been staged for review. Confirm with user if it should be stored using `commit_curated`."
-   :data (hiccup/html (generate-dataset-card (json/parse-string metadata)))
+   :data metadata
    :dataspec "viz"
-   :type   :success})
+   :type :success})
 
 (defn wrap-commit-curated
   [{:keys [metadata storage_id storage_scope storage_name]}]
@@ -244,7 +223,7 @@
         id (if (= storage_scope "entity") storage_id (create-folder @syn name storage_id))
         response (set-annotations @syn id ann-map)]
     (if (= 200 (:status response))
-      {:result "Metadata stored successfully."
+      {:result "Stored successfully."
        :type :success}
       {:result (str "Failed to store, server returned status " (:status response))
        :type :error})))
@@ -277,7 +256,7 @@
 (defn wrap-call-viz-agent
   [{:keys [request data]}]
   {:result (str "Visualization added.")
-   :data data
+   :data (json/parse-string data)
    :dataspec "vega-lite"
    :type :success})
 
