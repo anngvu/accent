@@ -210,11 +210,12 @@
 (defn wrap-stage-curated
   "Stage the curated entity by displaying it to the user."
   [{:keys [product_type metadata]}]
-  (swap! products assoc-in [(keyword product_type) :staging] metadata)
-  {:result "Curated entity has been staged for review. Confirm with user if it should be stored using `commit_curated`."
-   :data metadata
-   :dataspec "viz"
-   :type :success})
+  (let [curated (json/parse-string metadata)]
+    (swap! products assoc-in [(keyword product_type) :staging] curated)
+    {:result "Curated entity has been staged for review. Confirm with user if it should be stored using `commit_curated`."
+     :data curated ;; TODO: validation
+     :dataspec "dataset"
+     :type :success}))
 
 (defn wrap-commit-curated
   [{:keys [metadata storage_id storage_scope storage_name]}]
@@ -256,7 +257,7 @@
 (defn wrap-call-viz-agent
   [{:keys [request data]}]
   {:result (str "Visualization added.")
-   :data (json/parse-string data)
+   :data (json/parse-string data) ;; TODO: validation
    :dataspec "vega-lite"
    :type :success})
 
