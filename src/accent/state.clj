@@ -4,8 +4,7 @@
             [cheshire.core :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [database.dlvn :refer [init-db! run-query conn unique-dccs get-asset-view]]
-            [curate.dataset :refer [new-syn]]))
+            [database.dlvn :refer [init-db! run-query conn unique-dccs get-asset-view]]))
 
 
 (defonce u ;; user config
@@ -20,11 +19,6 @@
     :model-provider "OpenAI" ;; or Anthropic
     :model "gpt-4o"
     :ui :terminal}))
-
-(add-watch u :syn-client-watcher 
-           (fn [_ _ old-state new-state]
-             (when (not= (:sat old-state) (:sat new-state))
-               (new-syn (:sat new-state)))))
 
 (defn set-api-key!
   "Sey API keys for specific model providers (OpenAI or Anthropic)." 

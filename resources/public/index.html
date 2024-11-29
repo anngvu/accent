@@ -3,6 +3,10 @@
 <head>
     <title>AI Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
     <style>
         body { font-family: Arial, sans-serif; }
         #content { white-space: pre-wrap; }
@@ -48,21 +52,21 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="font-sans">
     <div class="flex h-full">
-        <div class="container p-6 w-2/5 h-full">
+        <div class="container w-2/5 min-h-screen p-6">
             <div id="modal-container"></div>
-            <div id="content" class="h-[80vh] overflow-y-auto bg-white p-4 rounded-md shadow-md"></div>
-            <div id="input-area" class="p-4 flex items-center bg-white rounded-md shadow-md">
+            <div id="content" class="h-[80vh] overflow-y-auto bg-white"></div>
+            <div id="input-area" class="p-4 flex items-center bg-white">
                 <div class="relative w-full h-24">
                     <textarea id="message" placeholder="Type your message here..." class="flex-grow p-4 h-24 resize-none focus:outline-none"></textarea>
                     <button id="send" class="absolute bottom-2 right-2 inline-flex items-center justify-center w-20 h-10 bg-black text-white font-semibold rounded-full hover:bg-blue-400 focus:outline-none">Send</button>
                 </div>
             </div>
         </div>
-        <div class="container p-6 w-3/5 h-full">
-            <div id="canvas" class="h-full bg-gray-100 p-4 rounded-md">
-                
+        <div class="container w-3/5 min-h-screen bg-gray-100 ">
+            <div id="canvas" class="h-full bg-gray-100 p-4 flex items-center justify-center">
+                <div id="vis"></div>
             </div>
         </div>
     </div>
@@ -92,6 +96,17 @@
             }
         }
 
+        function updateVegaViz(spec) {
+            vegaEmbed('#vis', spec)
+                .then(() => console.log('Visualization updated.'))
+                .catch(console.error);
+        }
+
+        function updateViz(spec) {
+            const vizDiv = document.getElementById('vis');
+            vizDiv.innerHTML = spec;
+        }
+
         ws.onopen = function() {
             console.log('WebSocket connection opened');
             // loadOptionsModal();
@@ -100,23 +115,47 @@
         ws.onmessage = function(event) {
             const message = JSON.parse(event.data);
             // console.log("Received message:", message);
-            
-            if (message.type === 'connected') {
-                contentDiv.innerHTML += `<div class="system-message">${message.message}</div>`;
-            } else if (message.type === 'dcc_set') {
-                contentDiv.innerHTML += `<div class="system-message">(DCC set to: ${message.dcc})</div>`;
-            } else if (message.type === 'observation-message') {
-                contentDiv.innerHTML += `<div class="observation-message">${message.content}</div>`;
-            } else if (message.type === 'assistant-start-message') {
-                contentDiv.innerHTML += `<div class="assistant-message">${message.content}`;
-            } else if (message.type === 'assistant-message') {
-                const lastMessage = contentDiv.lastElementChild;
-                lastMessage.innerHTML += message.content;
-            } else if (message.type === 'assistant-end-message') {
-                const lastMessage = contentDiv.lastElementChild;
-                lastMessage.innerHTML += message.content;
-            } else {
-                
+            switch (message.type) {
+                case 'connected':
+                    contentDiv.innerHTML += `<div class="system-message">${message.message}</div>`;
+                    break;
+                case 'dcc_set':
+                    contentDiv.innerHTML += `<div class="system-message">(DCC set to: ${message.dcc})</div>`;
+                    break;
+                case 'observation-message':
+                    contentDiv.innerHTML += `<div class="observation-message">${message.content}</div>`;
+                    break;
+                case 'assistant-start-message':
+                    contentDiv.innerHTML += `<div class="assistant-message">${message.content}`;
+                    break;
+                case 'assistant-message':
+                    try {
+                        const lastMessage = contentDiv.lastElementChild;
+                        lastMessage.innerHTML += message.content;
+                    } catch (error) {
+                        console.error('Error appending assistant message:', message.content);
+                    }
+                    break;
+                case 'assistant-end-message':
+                    try {
+                        const lastMessage = contentDiv.lastElementChild;
+                        lastMessage.innerHTML += message.content;
+                    } catch (error) {
+                        console.error('Error appending assistant end message:', message.content);
+                    }
+                    break;
+                case 'viz-message':
+                    try {
+                        if(message.dataspec === 'vega-lite') updateVegaViz(message.data);
+                        if(message.dataspec === 'dataset') createAlpineCard('vis', message.data);
+                        console.log(message.data);
+                    } catch (error) {
+                        console.error('Invalid data received:', message.data);
+                        updateViz('Last visualization could not be rendered');
+                    }
+                    break;
+                default:
+                    break;
             }        
         };
 
@@ -136,6 +175,49 @@
                 messageInput.value = '';
             }
         });
+
+        function createAlpineCard(containerId, data) {
+            
+            const container = document.getElementById(containerId);
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+
+            const cardWrapper = document.createElement('div');
+            cardWrapper.setAttribute('x-data', JSON.stringify({
+                attributes: data,
+                isSaved: false
+            }));
+            cardWrapper.className = "max-w-sm w-full bg-white rounded-lg shadow-md p-6 text-center";
+
+            // Create the card HTML content
+            const cardHTML = `
+                <div class="attributes text-left text-xs space-y-2 mb-4">
+                    <template x-for="(attribute, key) in attributes" :key="key">
+                        <div>
+                            <span class="font-semibold" x-text="key"></span>:
+                            <span class="text-gray-700" x-text="Array.isArray(attribute) ? attribute.join(', ') : attribute"></span>
+                        </div>
+                    </template>
+                </div>
+                <button @click="isSaved = true; saveCharacterData(attributes)"
+                        :class="isSaved ? 'bg-green-500' : 'bg-blue-500'" 
+                        class="text-white px-4 py-2 rounded-md flex items-center justify-center">
+                    <span x-show="!isSaved" class="mr-2">Save</span>
+                    <svg x-show="isSaved" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+
+            // Set the card wrapper's inner HTML
+            cardWrapper.innerHTML = cardHTML;
+
+            // Append the card to the container
+            container.appendChild(cardWrapper);
+        }
+
+
     </script>
 </body>
 </html>

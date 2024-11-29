@@ -21,6 +21,12 @@
 ;; Utils
 ;;;;;;;;;;;;;;;;;;;;;;
 
+;; (defn compress [data]
+;;   (let [baos (java.io.ByteArrayOutputStream.)]
+;;     (with-open [gzip (java.util.zip.GZIPOutputStream. baos)]
+;;       (.write gzip (.getBytes data "UTF-8")))
+;;     (.toByteArray baos)))
+
 (defn as-user-message
   "Structure plain text content"
   [content]
@@ -194,8 +200,10 @@
                        :content      (result :result)}]
        (if clients
         (do
-          (doseq [client @clients]
-            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")})))
+          (doseq [client @clients] 
+            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")})) 
+            (when (result :data) (httpkit/send! client (json/generate-string {:type "viz-message" :data (result :data) :dataspec (result :dataspec)})))
+            ) 
           (stream-response this msg forced-tool clients)) 
          (parse-response this (prompt-ai this msg forced-tool)))))
   (get-last-text [this] "TODO")

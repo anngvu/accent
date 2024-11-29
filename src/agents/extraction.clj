@@ -36,8 +36,8 @@
        :description "JSON schema given by the user, expected to be a URL or filepath such as 'https://example.org/schema.json' or './schema.json'."}
      :json_schema_representation
       {:type "string" 
-       :enum ["link" "filepath"] 
-       :description "Characterizes how the JSON schema is provided, as a 'link' for web link or 'filepath' for something resembling a local filepath."}}
+       :enum ["text" "link" "filepath"] 
+       :description "Characterizes how the JSON schema is provided: as direct text or a reference web link or local filepath."}}
     :required ["input" "input_representation" "json_schema" "json_schema_representation"] }}})
 
 (defn pmc-bioc
@@ -77,14 +77,16 @@
     {:content source}))
 
 (defn process-json-schema 
-  "Takes a ref to a JSON schema (web link or filepath), attempts to read and validate before returning schema as a map."
+  "Processes JSON schema text or ref (web link or filepath) with attempt to read and validate before returning schema as a map."
   [json-schema json-schema-representation]
-  (let [schema-content (:content (parse-resource json-schema json-schema-representation))]
+  (let [schema-content (if (= "text" json-schema-representation)
+                        json-schema
+                        (:content (parse-resource json-schema json-schema-representation)))]
     (try
       (let [parsed-schema (json/parse-string schema-content)]
         (if (and (map? parsed-schema) true)
-                 ;; (contains? parsed-schema "type"))
-                 ;; (contains? parsed-schema "properties")
+                  ;; (contains? parsed-schema "type"))
+                  ;; (contains? parsed-schema "properties")
           parsed-schema
           (throw (ex-info "Invalid JSON schema structure" {:schema parsed-schema}))))
       (catch Exception e
@@ -112,4 +114,3 @@
         custom-json-schema (process-json-schema json-schema json-schema-representation)
         extraction-agent (custom-openai-extraction-agent custom-json-schema)] 
     (extraction-agent text)))
-
