@@ -113,16 +113,17 @@ Feel free to propose a new feature or fast-tracking an existing one.
     - Set up local server.
     - Implement UI.
     - Implement streaming.
-- **v0.5** - Curation of external sources into structured format that can be stored as Synapse annotations.
+- **v0.5** - Basic interactive staging and visualization.
+    - Integrate a basic package/solution for viz.
+    - Appropriate prompts and wrapper functionality for viz.
+    - Working example staging function call for **dataset**
+    - Working example visualize function call for data charting. 
+- **v0.6** - Curation of external sources into structured format that can be stored as Synapse annotations.
     - Functionality to create annotation data (JSON) given content/content source and a JSON schema:
       -  (required) A scrapable web page and JSON schema. Assess target web page and let user know when one is not feasible. 
       -  (maybe) A local text source and JSON schema.
     - Storage into Synapse. (Note: data *does not always* have to be put into Synapse, so this is decoupled.)
-- **v0.6** - Basic interactive viz help, which serve all Responsibilities that benefit from easier analytics.
-    - Integrate a basic package/solution for viz
-    - Appropriate prompts and wrapper functionality for viz
-    - Working example `visualize` function call for **data model**
-    - Working example `visualize` function call for **dataset**
+
 
 
 Nothing more is planned until after the Evaluation (below).
