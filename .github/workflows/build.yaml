@@ -1,0 +1,48 @@
+name: Build and Release Uberjar
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Install Leiningen
+        uses: DeLaGuardo/setup-clojure@13.0
+        with:
+          lein: latest
+          
+      - name: Build uberjar
+        run: lein uberjar
+        
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: accent-${{ github.ref }}
+          draft: false
+          prerelease: ${{ contains(github.ref, 'rc') }}
+          
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./target/uberjar/accent-*-standalone.jar
+          asset_name: accent-${{ github.ref_name }}.jar
+          asset_content_type: application/java-archive
