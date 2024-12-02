@@ -36,13 +36,18 @@ jobs:
           release_name: accent-${{ github.ref }}
           draft: false
           prerelease: ${{ contains(github.ref, 'rc') }}
-          
+      
+      - name: Get artifact path
+        id: get_artifact
+        run: |
+          echo "artifact_path=$(ls ./target/uberjar/accent-*-standalone.jar)" >> $GITHUB_OUTPUT
+
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./target/uberjar/accent-*-standalone.jar
+          asset_path: ${{ steps.get_artifact.outputs.artifact_path }}
           asset_name: accent-${{ github.ref_name }}.jar
           asset_content_type: application/java-archive
