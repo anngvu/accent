@@ -36,6 +36,7 @@ jobs:
           release_name: accent-${{ github.ref }}
           draft: false
           prerelease: ${{ contains(github.ref, 'rc') }}
+      
       - name: Get artifact path
         id: get_artifact
         run: |
