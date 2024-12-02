@@ -25,26 +25,41 @@ This is such an application. Some data management responsibilities[^2][^3] prior
 
 Everyone is a curator and could benefit from AI-assisted curation. This open-source application originally developed for biomedical data curation is actually quite reusable for other domains and personal use cases. Some "off-label" use cases will be demonstrated. -->
 
-
 ### Usage
 
 With more power comes more responsibility. 
 Unlike interacting with generative AI in the default web interface, the application infrastructure here includes prompts and logic already optimized to project-specific workflows, direct API access to relevant platforms (Synapse), the local file system, configured databases, and additional tools/agents to accomplish various tasks. This infrastructure will also need to include guardrails.
 
-Until this is released as a .jar, you do need some Clojure tooling. 
+Regular end users should download and use the artifact .jar.
+
+##### With a release jar (most end users)
+
+- Download some available release from the [releases page](https://github.com/anngvu/accent/releases).
+- Run the jar, e.g. `java -jar accent-{version}.jar` after setting up the config in the same location as your jar. See [Configuration](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#configuration)! 
+By default, startup will open a web app with Syndi as your assistant.
+
+##### With Clojure dev tooling
+
+If you're comfortable with Clojure (or want to be comfortable with Clojure) and enable additional hacking:
 
 - Clone this repo. 
 - Install [Leiningen](https://leiningen.org/) (the easiest way to use Clojure).
 - Run `lein deps` to install dependencies.
-- Create a config file called `config.edn`. See the section [configuration](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#configuration).
-
+- Create a config file called `config.edn`. See [Configuration](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#configuration)!
+- Choose UI:
+  - For web UI, which is recommended and already default: `lein run -m accent.app`
+  - Alternatively, the terminal console/REPL currently allows different agents other than Syndi, or to interact with different module functions directly.
+    
 #### Configuration
 
 Settings and (optionally) credentials can be defined in `config.edn`. 
 Review the `example_config.edn` file; rename it to `config.edn` and modify as needed. 
 In addition to the comments in the example file, more discussion is provided below.
 
-##### AI Providers
+##### AI Providers specification
+
+> [!NOTE]  
+> Only OpenAI works with *both* web app UI and developer console for now. Anthropic only works with the developer console.
 
 The app integrates two providers, Anthropic and OpenAI, and an initial model provider must be specified. 
 In the *same chat*, it is possible to switch between models from the *same provider* but not between different providers, e.g. switching from ChatGPT-3.5 to ChatGPT-4o, but not from ChatGTP-3.5 to Claude Sonnet-3.5. 
@@ -59,27 +74,15 @@ Tip for usage: Trying to reduce costs by switching to a cheaper model for some t
   - To use, must have `ANTHROPIC_API_KEY` in env or set in config.
   - The default model is Claude Sonnet 3.5.
 
-#### Run your preferred UI and specialized curation agent
+#### Demos and Tutorials (WIP)
 
-> [!NOTE]  
-> Currently, there are some tradeoffs between the terminal vs web UI. The web UI will have some features that the terminal will not, such as showing figures. On the other hand, web UI only works with OpenAI for now.
-
-##### For Synapse curation
-
-The **web UI is highly recommended**:
-- `lein run -m accent.app`
-
-For the terminal:
-- `lein run -m agents.syndi`
+Planned demo materials will be linked once available:
+- **Assisted curation workflow** for preparing some kind of data asset for Synapse (e.g. a dataset).
+- **Data model exploration and development** for working with different DCC-specific models to reuse concepts, maintain alignment, improve quality, etc.
 
 <!--  ##### For personal knowledge curation 
 
 TBD. -->
-
-#### Demos / tutorials for various scenarios
-
-- **Assisted curation workflow** - You are preparing some kind of data asset for Synapse (e.g. a dataset).
-- **Data model exploration and development** - You want to develop your DCC-specific model with the benefit of analytical capabilities and accessible context with other DCC models (to reuse concepts, maintain alignment, improve quality, etc.) 
 
 ### Dynamic Roadmap
 

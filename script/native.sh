@@ -9,5 +9,5 @@ export GRAALVM_HOME="$HOME/graalvm-ce-java17-22.3.1"
      --libc=musl \
      -H:CCompilerOption=-Wl,-z,stack-size=2097152 \
      -H:Optimize=2 \
-     -jar ./target/uberjar/accent-0.1.0-SNAPSHOT-standalone.jar
+     -jar ./target/uberjar/accent-0.4.0-standalone.jar
 

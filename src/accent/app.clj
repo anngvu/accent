@@ -1,4 +1,5 @@
 (ns accent.app
+  (:gen-class)
   (:require [server.core :refer [start-server]]
             ))
 
