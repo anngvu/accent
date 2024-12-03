@@ -125,6 +125,18 @@
   (->>(.getColumnModelsForTableEntity client table-id)
       (mapv #(.getName %))))
 
+(defn get-table-sample
+  "Return example rows from a table"
+  [^SynapseClient client table-id]
+  (let [data (query-table client table-id (str "SELECT * FROM " table-id " LIMIT 5"))]
+  {:columns
+   (mapv (fn [name type]
+          {:name name
+           :type type})
+        (:cols data)
+        (:coltypes data))
+   :sample_rows (:rows data)
+   }))
 
 (defn get-restriction-level
   "Get an ENTITY's restriction level (OPEN|RESTRICTED_BY_TERMS_OF_USE|CONTROLLED_BY_ACT)"
@@ -282,6 +294,18 @@
      (get "jsonSchemaVersionInfo")
      (get-registered-schema)))
 
+(defn get-entity-wiki
+  [^SynapseClient client id]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/%s/wiki" repo-endpoint id)
+        bearer-token (.getAccessToken client)]
+    (try
+      (->(http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                  "Content-Type" "application/json"}})
+         (:body)
+         (json/parse-string)
+         (get "markdown"))
+      (catch Exception _ ""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Create folders and annotations
