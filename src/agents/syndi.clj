@@ -105,13 +105,14 @@
        :description "Only needed for new product metadata: provide the name or title for the product if it exists"}}}
     :required ["metadata" "storage_id" "storage_scope"] }})
 
-(def get_queryable_fields_spec
+(def get_table_context_spec
   {:type "function"
    :function
-   {:name "get_queryable_fields"
-    :description (str "Use this to first confirm the availability of a Synapse table id and its queryable fields to help answer user questions. "
+   {:name "get_table_context"
+    :description (str "Use this to first confirm the availability of a Synapse table and its queryable fields (schema). "
+                      "This function will also return useful table documentation if available. "
                       "In some cases, the user may not have table access or the available fields may be insufficient for the question. "
-                      "Use the result to construct the query or explain why the question cannot be answered.")
+                      "Use the returned table context to construct the query or explain why the user question may not be feasible.")
     :parameters
     {:type "object"
      :properties
@@ -125,8 +126,8 @@
    :function
    {:name "query_table"
     :description (str "Use to query table with SQL to help answer a user question; "
-                      "query should include only searchable fields;"
-                      "a subset of valid SQL is allowed -- do not include update clauses.")
+                      "query should include only queryable fields; "
+                      "only a subset of valid SQL is allowed -- do not include update clauses.")
     :parameters
     {:type "object"
      :properties
@@ -167,7 +168,7 @@
    curate_external_entity_spec
    commit_curated_spec
    stage_curated_spec
-   get_queryable_fields_spec
+   get_table_context_spec
    query_table_spec
    call_extraction_agent_spec
    call_viz_agent_spec
@@ -236,9 +237,11 @@
         json_schema_representation "text"]
   (call-extraction-agent input_source input_representation json_schema json_schema_representation)))
 
-(defn wrap-get-queryable-fields
+(defn wrap-get-table-context
+  "Abstraction combining retrieval of table schema and Wiki page as table context for querying and curation"
   [{:keys [table_id]}]
-  (let [cols (get-table-column-models @syn table_id)]
+  (let [cols (get-table-column-models @syn table_id)
+        table-doc (get-entity-wiki @syn table_id)]
         ;;table-schema (as-schema cols (@u :dcc))] ;; uses the knowledge graph, and integration is being refactored
     {:result (str cols)
      :type :success}))
@@ -282,7 +285,7 @@
                      "curate_dataset"         (wrap-curate-dataset args)
                      "stage_curated"          (wrap-stage-curated args)
                      "commit_curated"         (wrap-commit-curated args)
-                     "get_queryable_fields"   (wrap-get-queryable-fields args)
+                     "get_table_context"      (wrap-get-table-context args)
                      "query_table"            (wrap-query-table args)
                      "call_extraction_agent"  (wrap-call-extraction-agent args)
                      "call_viz_agent"         (wrap-call-viz-agent args)
