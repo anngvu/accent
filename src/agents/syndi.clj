@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [u]]
             [accent.chat :as chat]
-            [curate.synapse :refer [new-syn syn curate-dataset create-folder get-table-column-models get-entity-schema query-table set-annotations]]
+            [curate.synapse :refer [new-syn syn curate-dataset create-folder get-table-sample get-entity-wiki get-entity-schema query-table set-annotations]]
             [agents.extraction :refer [call-extraction-agent call_extraction_agent_spec]]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -110,9 +110,9 @@
    :function
    {:name "get_table_context"
     :description (str "Use this to first confirm the availability of a Synapse table and its queryable fields (schema). "
-                      "This function will also return useful table documentation if available. "
+                      "This will also return useful table documentation if available. "
                       "In some cases, the user may not have table access or the available fields may be insufficient for the question. "
-                      "Use the returned table context to construct the query or explain why the user question may not be feasible.")
+                      "Use the returned table context to answer a general question about the table, construct a query, or explain why the user question may not be feasible.")
     :parameters
     {:type "object"
      :properties
@@ -238,12 +238,12 @@
   (call-extraction-agent input_source input_representation json_schema json_schema_representation)))
 
 (defn wrap-get-table-context
-  "Abstraction combining retrieval of table schema and Wiki page as table context for querying and curation"
+  "Combine retrieval of table schema and Wiki doc as table context"
   [{:keys [table_id]}]
-  (let [cols (get-table-column-models @syn table_id)
-        table-doc (get-entity-wiki @syn table_id)]
-        ;;table-schema (as-schema cols (@u :dcc))] ;; uses the knowledge graph, and integration is being refactored
-    {:result (str cols)
+  (let [schema (get-table-sample @syn table_id)
+        doc (get-entity-wiki @syn table_id)]
+        ;;table-schema (as-schema cols (@u :dcc))] ;; previous impl using kg
+    {:result (str {:schema schema :doc doc })
      :type :success}))
 
 (defn wrap-query-table
