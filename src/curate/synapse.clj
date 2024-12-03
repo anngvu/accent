@@ -298,12 +298,14 @@
   [^SynapseClient client id]
   (let [repo-endpoint (.getRepoEndpoint client)
         url (format "%s/entity/%s/wiki" repo-endpoint id)
-        bearer-token (.getAccessToken client)
-        response (http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
-                                          "Content-Type" "application/json"}})]
-    (->(:body response)
-       (json/parse-string)
-       (get "markdown"))))
+        bearer-token (.getAccessToken client)]
+    (try
+      (->(http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                  "Content-Type" "application/json"}})
+         (:body)
+         (json/parse-string)
+         (get "markdown"))
+      (catch Exception _ ""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Create folders and annotations
