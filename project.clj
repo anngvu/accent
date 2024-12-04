@@ -19,7 +19,7 @@
                  [org.apache.tika/tika-parsers-standard-package "2.8.0"]]
   :jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
-  :main ^:skip-aot accent.chat
+  :main ^:skip-aot accent.app
   :target-path "target/%s"
   :native-image {:name ""}
   :profiles {:uberjar {:aot :all}})
