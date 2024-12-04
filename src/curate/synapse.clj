@@ -30,18 +30,14 @@
 ;; Helpers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn is-numeric [s]
+(defn as-numeric [s]
   (try
     (Double/parseDouble s)
-    true
-    (catch Exception _ false)))
-
+    (catch Exception _ nil)))
 
 (defn manifest-match? [entity] (re-find (re-matcher #"synapse_storage_manifest" (entity :name))))
 
-
 (defn find-manifest [files] (first (filter manifest-match? files)))
-
 
 (defn s-quote [s] (str "'" s "'"))
 
@@ -60,13 +56,11 @@
     (.setDrsEndpoint client "https://repo-prod.prod.sagebase.org/ga4gh/drs/v1")
     (reset! syn client)))
 
-
 (defn try-get-async-result
   [^SynapseClient client job-token table-id]
   (try
     (.queryTableEntityBundleAsyncGet client job-token table-id)
     (catch SynapseResultNotReadyException _ nil)))
-
 
 (defn get-async-result
   "TODO: Enforce retry count."
@@ -83,22 +77,18 @@
         (Thread/sleep backoff-ms)
         (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id))))))
 
-
 (defn get-rows [^RowSet rowset]
   (->>(.getRows rowset)
       (mapv #(.getValues %))))
-
 
 (defn get-columns [^RowSet rowset]
   (->>(.getHeaders rowset)
       (mapv #(.getName %))))
 
-
 (defn get-column-types [^RowSet rowset]
   (->>(.getHeaders rowset)
       (mapv #(.getColumnType %))
       (mapv str)))
-
 
 (defn query-table
    [^SynapseClient client table-id sql]
@@ -117,7 +107,6 @@
           {:rows (into rows (get-rows rowset))
            :cols (get-columns rowset)
            :coltypes (get-column-types rowset)})))))
-
 
 (defn get-table-column-models
   "For now return just names of columns configured for a table"
@@ -146,20 +135,17 @@
                   (.setRestrictableObjectType RestrictableObjectType/ENTITY))]
     (str (.getRestrictionLevel (.getRestrictionInformation client request)))))
 
-
 (defn get-acl
   "ACL may not exist on entity directly so must always first get benefactor id."
   [^SynapseClient client id]
   (let [benefactor (.getId (.getEntityBenefactor client id))]
     (.getACL client benefactor)))
 
-
 (defn scope-files 
   "Uses an asset-view to get a list of file ids in a scope (scope~folder of contentType=dataset)."
   [^SynapseClient client scope asset-view]
   (let [sql (str/join " " ["SELECT id FROM" asset-view "WHERE parentId='" scope "' and type='file'"])]
     (query-table client asset-view sql)))
-
 
 (defn scope-manifest
   "Specifically scope out id for manifest file using expected name pattern"
@@ -169,14 +155,12 @@
        (:rows)
        (ffirst))))
 
-
 (defn scope-dataset-folders
   "Uses an asset-view to get dataset folders based on contentType=dataset in a project"
   [^SynapseClient client project asset-view]
   (let [sql (str/join " " ["SELECT id,name FROM" asset-view "WHERE type='folder' and contentType='dataset' and projectId='" project "'"])]
     (->>(query-table client asset-view sql)
         (:rows))))
-
 
 (defn format-item [[id name]]
   (str "{ id: '" id "', name: '" name "'}"))
@@ -194,13 +178,11 @@
       (str "Multiple potential datasets found for project. Candidates for further selection: " (format-data result))
       "No potential datasets found in project scope.")))
 
-
 (defn get-file-as-creator
   [^SynapseClient client id]
   (let [file-handle-id (.getDataFileHandleId (.getEntityById client id))
         temp-url (.getFileHandleTemporaryUrl client file-handle-id)]
     (http/get temp-url)))
-
 
 (defn download-file
   [^SynapseClient client id output-path]
@@ -211,7 +193,6 @@
                (.setFileHandleId file-handle-id))]
     (.downloadFile client file-handle-assoc (File. output-path))
     output-path))
-
 
 (defn get-stored-manifest
   "Get data from a manifest file associated with a scope and stored in Synapse directly within the scope.
@@ -224,14 +205,12 @@
     (download-file client manifest-id (str scope "-manifest.csv"))
     "Manifest not automatically found"))
 
-
 (defn re-manifest
   "Remanifest from annotations with explicit input regarding the expected manifest template.
   TODO: More advanced implementation - if the expected template schema is not provided,
   use Component and data model lookup to generate the manifest representation."
   []
   "TODO")
-
 
 (defn public-release?
   "True if has been widely released for download to authenticated Synapse users, or nil."
@@ -240,12 +219,10 @@
               (.contains (.getAccessType %) ACCESS_TYPE/DOWNLOAD))
         (.getResourceAccess acl)))
 
-
 (defn has-AR?
   "An entity that has a get-restriction-level result of not OPEN."
   [^SynapseClient client id]
   (not= "OPEN" (get-restriction-level client id)))
-
 
 (defn get-parent-project-id
   "Get parent project for some entity within that project."
@@ -346,7 +323,6 @@
     (->(:body response)
        (json/parse-string true))))
 
-
 (defn update-annotations
   "Updates annotations for a Synapse entity via REST API
    synapse-client: Initialized Synapse client instance
@@ -373,7 +349,6 @@
         (update-annotations client entity-id))))
 
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Follow-up processing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -384,7 +359,6 @@
     (doall
      (csv/read-csv reader))))
 
-
 (defn fill-val
   "Look up val for k in summary ref"
   [k ref]
@@ -392,13 +366,12 @@
     val
     "TBD"))
 
-
 (defn summarize-column [column-data]
-  (if (every? is-numeric column-data)
-    (let [nums (map #(Double/parseDouble %) column-data)]
-      {:type "numeric" :min (apply min nums) :max (apply max nums)})
-    {:type "ordinal" :unique-values (distinct column-data)}))
-
+  (let [data-na-removed (remove str/blank? column-data)
+        nums (map as-numeric data-na-removed)]
+    (if (every? number? nums)
+      {:type "numeric" :min (apply min nums) :max (apply max nums)}
+      {:type "ordinal" :first-20-unique-values (take 20 (distinct column-data)) :total-unique-values (count (distinct column-data))})))
 
 (defn summarize-manifest
   "Read a csv manifest, analyze and summarize it column-by-column."
@@ -407,7 +380,6 @@
         headers (first manf)
         columns (apply map vector (rest manf))]
     (zipmap headers (map summarize-column columns))))
-
 
 (defn label-access 
   "Essentially a mapping that interprets access level + settings to schema-specific labels.
@@ -420,7 +392,6 @@
       (= "CONTROLLED_BY_ACT" arl) "CONTROLLED ACCESS"
       (not (public-release? (get-acl client id))) "PRIVATE ACCESS"
       :else "PUBLIC ACCESS")))
-
 
 (defn get-contributor
   "The most parsimonious approach for designating contributors
@@ -435,7 +406,6 @@
                            (s-quote scope)])]
     (first (:rows (query-table client asset-view sql)))))
 
-
 (defn get-user-name
   ([client]
    (let [self (.getMyProfile client)]
@@ -444,14 +414,12 @@
    (let [user (.getUserProfile client user)]
      (str (.getFirstName user) " " (.getLastName user)))))
 
-
 (defn derive-from-manifest
   "Derive metadata from manifest metadata"
   [file-path dataset-props]
   (->(summarize-manifest file-path)
      (select-keys dataset-props)
      (update-vals :unique-values)))
-
 
 (defn derive-from-system
   "Derive metadata from some default system metadata, e.g. createdBy, modifiedBy."
@@ -479,7 +447,6 @@
          m' (if dataset-props (derive-from-manifest m-file dataset-props) (summarize-manifest m-file))
          s' (derive-from-system client scope asset-view)]
     (merge s' m'))))
-
 
 (defn curate-dataset
   "There are two possible entrypoints to curating dataset -- the more specific one is providing the dataset folder,
