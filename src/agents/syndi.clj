@@ -203,8 +203,10 @@
     (if (= :success (result :type))
       (do 
         (swap! products assoc-in [:dataset :intermediate] result)
-        {:result (str "Retrieved entity schema and initial curated data; your task is transform the data and complete missing properties, adhering to the target schema so that the data can be sent to staging for review.\n"
-                  "Target schema:\n" schema "\n\nInitial curated data:\n" (result :result))
+        {:result (str "Retrieved entity schema and summary attributes; as a detail-oriented curator, curate the entity according to the given schema before staging product for review. "
+                      "If 'description', 'comments' or similar field is present in the schema, write an informative description tailored for the entity type. "
+                      "For example, for a dataset entity, highlight things like interesting features, number of groups, and types of samples to help others consume the curated product.\n"
+                      "Target schema:\n" schema "\n\nInitial data:\n" (result :result))
          :type :success})
       result)))
 
