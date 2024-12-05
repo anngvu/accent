@@ -153,15 +153,13 @@
         tools-enabled (:tools config)
         db-env (:db-env config)]
     (set-model-provider! config)
-    (when tools-enabled
-      (set-syn-token! config)
+    (set-syn-token! config)
+    (when tools-enabled 
       (try
-        (println "Attempting to pull the *latest* data models and configurations...")
-        (init-db! {:env db-env})
-        (println "Knowledgebase created!")
-        (when (= ui :terminal)
-          (prompt-for-dcc)
-          (swap! u assoc :ui ui))
+        (do
+          (println "Attempting to pull the *latest* data models and configurations...")
+          (init-db! {:env db-env})
+          (println "Knowledgebase created!")) 
         (catch Exception e
-          (println "Encountered issue during setup:" (.getMessage e))
-          (System/exit 1))))))
+            (println "Encountered issue during setup:" (.getMessage e))
+            (System/exit 1))))))
