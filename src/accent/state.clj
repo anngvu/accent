@@ -41,7 +41,9 @@
   [{:keys [synapse-auth-token]}]
   (cond
     synapse-auth-token
-    (swap! u assoc :sat synapse-auth-token)
+    (do
+      (swap! u assoc :sat synapse-auth-token)
+      (println "Synapse token set from config."))
 
     (@u :sat)
     true
