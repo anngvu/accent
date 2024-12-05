@@ -369,7 +369,7 @@
 (defn summarize-column [column-data]
   (let [data-na-removed (remove str/blank? column-data)
         nums (map as-numeric data-na-removed)]
-    (if (every? number? nums)
+    (if (and (seq nums) (every? number? nums))
       {:type "numeric" :min (apply min nums) :max (apply max nums)}
       {:type "ordinal" :first-20-unique-values (take 20 (distinct column-data)) :total-unique-values (count (distinct column-data))})))
 
