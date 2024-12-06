@@ -324,7 +324,7 @@
         bearer-token (.getAccessToken client)
         response (http/get url {:headers {"Authorization" (str "Bearer " bearer-token)}})]
     (->(:body response)
-       (json/parse-string true))))
+       (json/parse-string))))
 
 (defn update-annotations
   "Updates annotations for a Synapse entity via REST API
@@ -345,10 +345,10 @@
   "Updates annotations; annotations should be a map of key-value pairs."
   [client entity-id annotations]
   (let [current (get-annotations client entity-id)
-        ann-current (current :annotations)]
-    (->>(as-annotations annotations)
-        (merge ann-current)
-        (assoc current :annotations)
+        ann-current (current "annotations")
+        ann-new (as-annotations annotations)
+        ann-merged (merge ann-current ann-new)]
+    (->>(assoc current "annotations" ann-merged)
         (update-annotations client entity-id))))
 
 
