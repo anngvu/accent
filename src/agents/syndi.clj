@@ -198,17 +198,21 @@
   "Implement pipeline and prompt engineering to coordinate curation: 1) get dataset schema, 2) call curate_dataset for some preprocessing, 
   3) store dataset intermediate for reference 4) return various data sources with appropriate prompting"
   [{:keys [scope_id asset_view]}]
-  (let [schema (get-entity-schema @syn scope_id)
-        result (curate-dataset @syn scope_id asset_view)]
-    (if (= :success (result :type))
-      (do 
-        (swap! products assoc-in [:dataset :intermediate] result)
-        {:result (str "Retrieved entity schema and summary attributes; as a detail-oriented curator, curate the entity according to the given schema before staging product for review. "
-                      "If 'description', 'comments' or similar field is present in the schema, write an informative description tailored for the entity type. "
-                      "For example, for a dataset entity, highlight things like interesting features, number of groups, and types of samples to help others consume the curated product.\n"
-                      "Target schema:\n" schema "\n\nInitial data:\n" (result :result))
-         :type :success})
-      result)))
+  (let [schema (get-entity-schema @syn scope_id)]
+    (if (nil? schema)
+      {:result "Entity schema is not available. Curation cannot proceed without a valid schema."
+       :type :error}
+      (let [result (curate-dataset @syn scope_id asset_view)]
+        (if (= :success (result :type))
+          (do 
+            (swap! products assoc-in [:dataset :intermediate] result)
+            {:result (str "Info: Schema for data product and initial data retrieved below.\n"
+                          "Instructions: Carefully review the properties in the target schema and describe the data product according to the schema before staging for review. "
+                          "If 'description', 'comments' or similar field is present, write an informative description tailored for the entity type. "
+                          "For example, for a dataset entity, highlight things like interesting features, number or types of samples to help others consume the curated product. "
+                          "Target schema:\n" schema "\n\nInitial data:\n" (result :result))
+             :type :success})
+          result)))))
 
 (defn wrap-stage-curated
   "Stage the curated entity by displaying it to the user."
@@ -221,11 +225,12 @@
      :type :success}))
 
 (defn wrap-commit-curated
-  [{:keys [metadata storage_id storage_scope storage_name]}]
+  [{:keys [metadata storage_id storage_scope product_name]}]
   (let [ann-map (json/parse-string metadata)
-        name (if storage_name storage_name (str "Name"))
+        name (if product_name product_name (str "Name"))
         id (if (= storage_scope "entity") storage_id (create-folder @syn name storage_id))
         response (set-annotations @syn id ann-map)]
+    (println "Metadata stored on/within" storage_scope storage_id)
     (if (= 200 (:status response))
       {:result "Stored successfully."
        :type :success}
