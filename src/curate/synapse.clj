@@ -250,26 +250,29 @@
 
 (defn get-registered-schema
   [schema-info-map]
-  (let [registered-base "https://repo-prod.prod.sagebase.org/repo/v1/schema/type/registered/"
-        id (schema-info-map "$id")
-        url (str registered-base id)]
-    (:body (http/get url))))
+  (let [registered-base "https://repo-prod.prod.sagebase.org/repo/v1/schema/type/registered/"]
+    (->>(schema-info-map "$id")
+        (str registered-base)
+        (http/get)
+        (:body))))
 
 (defn get-schema-binding
   [^SynapseClient client id]
   (let [repo-endpoint (.getRepoEndpoint client)
         url (format "%s/entity/%s/schema/binding" repo-endpoint id)
-        bearer-token (.getAccessToken client)
-        response (http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
-                                          "Content-Type" "application/json"}} )]
-    (->(:body response)
-       (json/parse-string))))
+        bearer-token (.getAccessToken client)]
+    (try
+      (->(http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                  "Content-Type" "application/json"}})
+         (:body)
+         (json/parse-string))
+      (catch Exception _ nil))))
 
 (defn get-entity-schema
   [^SynapseClient client id]
-  (->(get-schema-binding client id)
-     (get "jsonSchemaVersionInfo")
-     (get-registered-schema)))
+  (some->(get-schema-binding client id)
+         (get "jsonSchemaVersionInfo")
+         (get-registered-schema)))
 
 (defn get-entity-wiki
   [^SynapseClient client id]
