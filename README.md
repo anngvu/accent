@@ -45,7 +45,7 @@ If you're comfortable with Clojure (or want to be comfortable with Clojure) and 
 - Clone this repo. 
 - Install [Leiningen](https://leiningen.org/) (the easiest way to use Clojure).
 - Run `lein deps` to install dependencies.
-- Create a config file called `config.edn`. See [Configuration](https://github.com/anngvu/accent/tree/web-ui?tab=readme-ov-file#configuration)!
+- Create a config file called `config.edn`. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
 - Choose UI:
   - For web UI, which is recommended and already default: `lein run -m accent.app`
   - Alternatively, the terminal console/REPL currently allows different agents other than Syndi, or to interact with different module functions directly.
