@@ -1,0 +1,72 @@
+name: Table Query and Viz Benchmarking / Experience Report
+description: Report your table and query viz testing experience and share any discovered issues, ideas, or other insights.
+title: "Table Query and Viz Experience Report"
+labels: []
+projects: []
+assignees:
+  - anngvu
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Instructions for trying out table query and viz with Syndi
+        1. Choose a table that you know well and that another Sage employee can access, since it will be easier to reproduce and understand.
+        2. Add documentation to the root Wiki page for the table.
+           Try to at least describe the columns and provide 1-2 example queries. 
+           This is inserted as context so *you* are the one doing "prompt engineering"; feel free to experiment with contextual content to improve the results. 
+        3. Create benchmark questions. Try for between 4-20 questions with a variety ranging from "easy" to "hard". 
+        ## How your report will be used
+        We'll use this to understand what type of Synapse table data are of interest/fair game (aside from the obvious portal-related tables); how each type of table data works with the current defaults; 
+        how users try to optimize documentation for AI reusability; the range of natural conversations for query/viz tasks and what derailment/miscommunication may look like.
+  - type: input
+    id: which-table
+    attributes:
+      label: Which Synapse Table 
+      description: Please enter the Synapse ID of your table.
+      placeholder: syn12345
+    validations:
+      required: true
+  - type: textarea
+    id: what-questions
+    attributes:
+      label: What questions did you use?
+      description: Provide a link to documentation for questions you used or copy and paste them here. You can provide additional characterization of the questions as "easy", "medium", or "hard" and make a note of whether you tried to visualize the results for a question or not.
+      value: ""
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: Evaluation Insights
+      description: Provide your thoughts of how well things worked for each questions and overall.  
+      value: ""
+    validations:
+      required: true
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: What version of accent did you run?
+      options:
+        - v0.5-rc3 (Default)
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: What browser did you use?
+      multiple: false
+      options:
+        - Firefox
+        - Chrome
+        - Safari
+        - Microsoft Edge
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Saved chat
+      description: If you saved the chat and are comfortable sharing, please upload it to somewhere like Google Drive and share it with anh.nguyet.vu@sagebase.org.
+
