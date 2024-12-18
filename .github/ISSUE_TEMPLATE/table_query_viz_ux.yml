@@ -16,8 +16,11 @@ body:
            This is inserted as context so *you* are the one doing "prompt engineering"; feel free to experiment with contextual content to improve the results. 
         3. Create benchmark questions. Try for between 4-20 questions with a variety ranging from "easy" to "hard". 
         ## How your report will be used
-        We'll use this to understand what type of Synapse table data are of interest/fair game (aside from the obvious portal-related tables); how each type of table data works with the current defaults; 
-        how users try to optimize documentation for AI reusability; the range of natural conversations for query/viz tasks and what derailment/miscommunication may look like.
+        We'll use this to understand:
+        - what type of Synapse table data are of interest/fair game (aside from the obvious portal-related tables)
+        - how types of table data work well or not with the current defaults
+        - how users try to optimize documentation for AI reusability
+        - the range of natural conversations for table query/viz tasks and what issues may look like
   - type: input
     id: which-table
     attributes:
@@ -30,16 +33,16 @@ body:
     id: what-questions
     attributes:
       label: What questions did you use?
-      description: Provide a link to documentation for questions you used or copy and paste them here. You can provide additional characterization of the questions as "easy", "medium", or "hard" and make a note of whether you tried to visualize the results for a question or not.
-      value: "..."
+      description: Attach documentation for questions you used or copy and paste them below. You can provide additional characterization of the questions as "easy", "medium", or "hard" and make a note for success of the resultant answer and/or visualization.
+      value: "Here are my questions and assessment: "
     validations:
       required: true
   - type: textarea
     id: experience
     attributes:
-      label: Evaluation Insights
-      description: Provide your thoughts of how well things worked for each questions and overall.  
-      value: "..."
+      label: Other Evaluation Insights
+      description: Share any other insights you have
+      value: "I found that... "
     validations:
       required: true
   - type: dropdown
@@ -68,5 +71,5 @@ body:
     id: logs
     attributes:
       label: Saved chat
-      description: If you saved the chat and are comfortable sharing, please upload it to somewhere like Google Drive and share it with anh.nguyet.vu@sagebase.org.
+      description: (Optional) If you saved the chat to file and it is appropriate for sharing publicly and you are comfortable sharing publicly, attach it here. Otherwise, upload it to Synapse for more fine-grained access and share it with `avu`, and make a note of the Synapse ID here.
 
