@@ -31,12 +31,7 @@ body:
     attributes:
       label: What questions did you use?
       description: Provide a link to documentation for questions you used or copy and paste them here. You can provide additional characterization of the questions as "easy", "medium", or "hard" and make a note of whether you tried to visualize the results for a question or not.
-      value: |
-      ### Questions
-      1. 
-      2. 
-      3. 
-      4.
+      value: "..."
     validations:
       required: true
   - type: textarea
