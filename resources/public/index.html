@@ -59,7 +59,7 @@
             <div id="content" class="h-[80vh] overflow-y-auto bg-white"></div>
             <div id="input-area" class="p-4 flex items-center bg-white">
                 <div class="relative w-full h-24">
-                    <textarea id="message" placeholder="Type your message here..." class="flex-grow p-4 h-24 resize-none focus:outline-none"></textarea>
+                    <textarea id="message" placeholder="Your message here. Use Shift+Enter to send." class="flex-grow p-4 h-24 resize-none focus:outline-none"></textarea>
                     <button id="send" class="absolute bottom-2 right-2 inline-flex items-center justify-center w-20 h-10 bg-black text-white font-semibold rounded-full hover:bg-blue-400 focus:outline-none">Send</button>
                 </div>
             </div>
@@ -167,12 +167,21 @@
             contentDiv.innerHTML += '<div class="system-message">Connection closed.</div>';
         };
 
-        sendButton.addEventListener('click', function() {
+        function sendMessage() {
             const message = messageInput.value.trim();
             if (message !== '') {
                 ws.send(JSON.stringify({type: 'chat', content: message}));
                 contentDiv.innerHTML += `<div class="user-message">${message}</div>`;
                 messageInput.value = '';
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey) {
+                e.preventDefault();
+                sendMessage();
             }
         });
 
