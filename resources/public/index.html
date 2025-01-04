@@ -55,17 +55,21 @@
 <body class="font-sans">
     <div class="flex h-full">
         <div class="container w-2/5 min-h-screen p-6">
+            <div class="flex justify-end items-center space-x-4">
+                <a href="#" onclick="save()" class="text-blue-600 hover:text-blue-400">Save</a>
+                <a href="#" onclick="stopApp()" class="text-blue-600 hover:text-blue-400">Stop</a>
+            </div>
             <div id="modal-container"></div>
             <div id="content" class="h-[80vh] overflow-y-auto bg-white"></div>
             <div id="input-area" class="p-4 flex items-center bg-white">
                 <div class="relative w-full h-24">
                     <textarea id="message" placeholder="Your message here. Use Shift+Enter to send." class="flex-grow p-4 h-24 resize-none focus:outline-none"></textarea>
-                    <button id="send" class="absolute bottom-2 right-2 inline-flex items-center justify-center w-20 h-10 bg-black text-white font-semibold rounded-full hover:bg-blue-400 focus:outline-none">Send</button>
-                </div>
+                    <button id="send" class="absolute bottom-0 right-0 inline-flex items-center justify-center w-12 h-10 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-400 focus:outline-none">Send</button>                
+                </div>            
             </div>
         </div>
-        <div class="container w-3/5 min-h-screen bg-gray-100 ">
-            <div id="canvas" class="h-full bg-gray-100 p-4 flex items-center justify-center">
+        <div class="container w-3/5 min-h-screen bg-gray-100">
+            <div id="canvas" class="h-full bg-gray-100 flex items-center justify-center">
                 <div id="vis"></div>
             </div>
         </div>
@@ -94,6 +98,10 @@
                 ws.send(JSON.stringify({type: 'set_dcc', dcc: selectedDCC}));
                 document.getElementById('options-modal').style.display = 'none';
             }
+        }
+
+        function save() {
+            ws.send(JSON.stringify({type: 'save'}));
         }
 
         function updateVegaViz(spec) {

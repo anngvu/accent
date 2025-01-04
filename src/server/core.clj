@@ -1,7 +1,7 @@
 (ns server.core
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.chat :refer [stream-response]]
+            [accent.chat :refer [stream-response save-messages]]
             [agents.syndi :refer [OpenAISyndiAgent]]
             [org.httpkit.server :as httpkit]
             [compojure.core :refer [defroutes GET]]
@@ -39,6 +39,9 @@
 
       "chat"
       (future (stream-response OpenAISyndiAgent (:content parsed-msg) nil clients))
+
+      "save"
+      (save-messages OpenAISyndiAgent)
 
       (httpkit/send! channel (json/generate-string {:type "error" :message "Unknown message type"})))))
 
