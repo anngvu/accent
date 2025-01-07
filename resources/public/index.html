@@ -124,10 +124,10 @@
             const message = JSON.parse(event.data);
             // console.log("Received message:", message);
             switch (message.type) {
-                case 'connected':
+                case 'system-message':
                     contentDiv.innerHTML += `<div class="system-message">${message.message}</div>`;
                     break;
-                case 'dcc_set':
+                case 'dcc-set':
                     contentDiv.innerHTML += `<div class="system-message">(DCC set to: ${message.dcc})</div>`;
                     break;
                 case 'observation-message':

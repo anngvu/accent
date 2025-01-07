@@ -84,13 +84,14 @@
    "certain obstacles oppose prompt service"
    "onset of prompting stress"])
 
-(defn save-messages-default
+(defn save-messages!
   [messages & [filename]]
   (let [json-str (json/generate-string @messages)
         default-name (str "accent-" (System/currentTimeMillis) ".json")
         fname (or filename default-name)]
     (with-open [wr (io/writer fname)]
-      (.write wr json-str))))
+      (.write wr json-str))
+    fname))
 
 (defn context-stop
   "When context limit reached let user know and present limited option to save chat.
@@ -232,7 +233,7 @@
                     (swap! collected-response update :content str content))))))))))
   
   SaveOps
-  (save-messages [this] (save-messages-default messages)))
+  (save-messages [this] (save-messages! messages)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Anthropic Provider Def
