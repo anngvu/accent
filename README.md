@@ -35,8 +35,10 @@ Regular end users should download and use the artifact .jar.
 ##### With a release jar (most end users)
 
 - Download some available release from the [releases page](https://github.com/anngvu/accent/releases).
-- Run the jar, e.g. `java -jar accent-{version}.jar` after setting up the config in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
-By default, startup will open a web app with Syndi as your assistant.
+- Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
+- Run the jar, e.g. `java -jar accent-{version}.jar` or double-clicking the file. 
+
+By default, this should open a web app with your default browser with Syndi as your assistant.
 
 ##### With Clojure dev tooling
 
