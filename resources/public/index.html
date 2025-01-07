@@ -57,7 +57,7 @@
         <div class="container w-2/5 min-h-screen p-6">
             <div class="flex justify-end items-center space-x-4">
                 <a href="#" onclick="save()" class="text-blue-600 hover:text-blue-400">Save</a>
-                <a href="#" onclick="stopApp()" class="text-blue-600 hover:text-blue-400">Stop</a>
+                <a href="#" onclick="stop()" class="text-blue-600 hover:text-blue-400">Stop</a>
             </div>
             <div id="modal-container"></div>
             <div id="content" class="h-[80vh] overflow-y-auto bg-white"></div>
@@ -102,6 +102,10 @@
 
         function save() {
             ws.send(JSON.stringify({type: 'save'}));
+        }
+
+        function stop() {
+            ws.send(JSON.stringify({type: 'stop'}));
         }
 
         function updateVegaViz(spec) {

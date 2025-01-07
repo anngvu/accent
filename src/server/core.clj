@@ -45,6 +45,12 @@
         (doseq [client @clients]
           (httpkit/send! client (json/generate-string {:type "system-message" :message (str "Saved as " saved-file ".")}))))
 
+      "stop"
+      (do
+        (doseq [client @clients]
+          (httpkit/send! client (json/generate-string {:type "system-message" :message (str "Stopping app...")})))
+        (System/exit 0))
+
       (httpkit/send! channel (json/generate-string {:type "error" :message "Unknown message type"})))))
 
 (defn ws-handler [req]
