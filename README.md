@@ -30,7 +30,7 @@ Everyone is a curator and could benefit from AI-assisted curation. This open-sou
 With more power comes more responsibility. 
 Unlike interacting with generative AI in the default web interface, the application infrastructure here includes prompts and logic already optimized to project-specific workflows, direct API access to relevant platforms (Synapse), the local file system, configured databases, and additional tools/agents to accomplish various tasks. This infrastructure will also need to include guardrails.
 
-Regular end users should download and use the artifact .jar.
+First make sure Java is installed on your system. Then, for most regular end users, download and use the artifact jar.
 
 ##### With a release jar (most end users)
 
