@@ -1,7 +1,7 @@
 (ns server.core
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.chat :refer [stream-response]]
+            [accent.chat :refer [stream-response save-messages]]
             [agents.syndi :refer [OpenAISyndiAgent]]
             [org.httpkit.server :as httpkit]
             [compojure.core :refer [defroutes GET]]
@@ -35,16 +35,21 @@
       "set_dcc"
       (do
         (swap! u assoc :dcc (:dcc parsed-msg)))
-        ;; (httpkit/send! channel (json/generate-string {:type "dcc_set" :dcc (:dcc parsed-msg)})))
+        ;; (httpkit/send! channel (json/generate-string {:type "dcc-set" :dcc (:dcc parsed-msg)})))
 
       "chat"
       (future (stream-response OpenAISyndiAgent (:content parsed-msg) nil clients))
+
+      "save"
+      (let [saved-file (save-messages OpenAISyndiAgent)] 
+        (doseq [client @clients]
+          (httpkit/send! client (json/generate-string {:type "system-message" :message (str "Saved as " saved-file ".")}))))
 
       (httpkit/send! channel (json/generate-string {:type "error" :message "Unknown message type"})))))
 
 (defn ws-handler [req]
   (httpkit/with-channel req channel
-    (httpkit/send! channel (json/generate-string {:type "connected" :message "Connected to server."}))
+    (httpkit/send! channel (json/generate-string {:type "system-message" :message "Connected to server."}))
     (httpkit/on-receive channel (fn [msg] (handle-message msg clients)))
     (httpkit/on-close channel (fn [status] (swap! clients disj channel)))
     ;; Add client to the set

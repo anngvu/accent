@@ -17,6 +17,9 @@
 (defprotocol AIProviderStreamOps
   (stream-response [this message tool-choice clients] "Handle streaming AI provider response"))
 
+(defprotocol SaveOps
+  (save-messages [this] "Save messages to file"))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Utils
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -81,24 +84,14 @@
    "certain obstacles oppose prompt service"
    "onset of prompting stress"])
 
-(defn save-chat
-  [messages filename]
-  (let [json-str (json/generate-string @messages)]
-    (with-open [wr (io/writer filename)]
-      (.write wr json-str))))
-
-(defn save-chat-offer
-  []
-  (print (str "If you would like to save the chat data before the program exits, "
-              "please type 'Yes' exactly."))
-  (println)
-  (flush)
-  (when (= "Yes" (read-line))
-    (let [filename (str "accent_" ".json")]
-      (save-chat "chat.json")
-      (flush)
-      (println "Saved your chat as" filename "!")))
-  (print "Please exit now. Program must be restarted to start a new chat."))
+(defn save-messages!
+  [messages & [filename]]
+  (let [json-str (json/generate-string @messages)
+        default-name (str "accent-" (System/currentTimeMillis) ".json")
+        fname (or filename default-name)]
+    (with-open [wr (io/writer fname)]
+      (.write wr json-str))
+    fname))
 
 (defn context-stop
   "When context limit reached let user know and present limited option to save chat.
@@ -109,8 +102,7 @@
   (println "-- NOTIFICATION --")
   (println
    (str "Hey, it looks like " (rand-nth oops)
-        ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens."))
-  (save-chat-offer))
+        ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens.")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper Fns for Streaming
@@ -170,24 +162,24 @@
           "tool_calls"    (add-tool-result this tool-calls clients)
           "content_filter" (peek @messages)
           "stop"          (peek @messages)))))
-  (prompt-ai [this content] (prompt-ai this content nil)) 
+  (prompt-ai [this content] (prompt-ai this content nil))
   (prompt-ai [this content tool-choice]
-     (let [message (if (string? content)
-                     (as-user-message content)
-                     content)]
-       (swap! messages conj message)
-       (let [response (->
-                        (cond->
-                        {:model model
-                         :messages @messages
-                         :stream (@u :stream)}
-                         tools (merge {:tools tools :parallel_tool_calls false}) 
-                         tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
-                       (request-openai-completions))]
-         (if (:error response)
-           {:error true
-            :message (:message response)}
-           response))))
+    (let [message (if (string? content)
+                    (as-user-message content)
+                    content)]
+      (swap! messages conj message)
+      (let [response (->
+                      (cond->
+                       {:model model
+                        :messages @messages
+                        :stream (@u :stream)}
+                       tools (merge {:tools tools :parallel_tool_calls false})
+                        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
+                      (request-openai-completions))]
+        (if (:error response)
+          {:error true
+           :message (:message response)}
+          response))))
   (add-tool-result [this tool-calls] (add-tool-result this tool-calls nil))
   (add-tool-result [this tool-calls clients]
     (let [tool-call   (first tool-calls)
@@ -198,14 +190,14 @@
                        :role         "tool"
                        :name         tool-name
                        :content      (result :result)}]
-       (if clients
+      (if clients
         (do
-          (doseq [client @clients] 
-            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")})) 
-            (when (result :data) (httpkit/send! client (json/generate-string {:type "viz-message" :data (result :data) :dataspec (result :dataspec)})))
-            ) 
-          (stream-response this msg forced-tool clients)) 
-         (parse-response this (prompt-ai this msg forced-tool)))))
+          (doseq [client @clients]
+            (httpkit/send! client (json/generate-string {:type "observation-message" :content (str "(Assistant used " tool-name ")\n")}))
+            (when (result :data) (httpkit/send! client (json/generate-string {:type "viz-message" :data (result :data) :dataspec (result :dataspec)}))))
+
+          (stream-response this msg forced-tool clients))
+        (parse-response this (prompt-ai this msg forced-tool)))))
   (get-last-text [this] "TODO")
 
   AIProviderStreamOps
@@ -233,12 +225,15 @@
                   (when tool_calls
                     (update-collected-tool-calls collected-response tool_calls))
                   (when content
-                    (when clients (doseq [client @clients] 
-                                    (httpkit/send! client 
-                                                   (json/generate-string 
-                                                    {:type (if role "assistant-start-message" "assistant-message") 
+                    (when clients (doseq [client @clients]
+                                    (httpkit/send! client
+                                                   (json/generate-string
+                                                    {:type (if role "assistant-start-message" "assistant-message")
                                                      :content content}))))
-                    (swap! collected-response update :content str content)))))))))))
+                    (swap! collected-response update :content str content))))))))))
+  
+  SaveOps
+  (save-messages [this] (save-messages! messages)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Anthropic Provider Def
@@ -271,30 +266,30 @@
        (swap! messages conj message) 
        (let [response (-> 
                        (cond->
-                       {:model       model 
-                        :max_tokens  1024
-                        ;;:system      nil ;;  (system-prompt) 
-                        :messages    @messages
-                        :temperature 0
-                        :stream      false} 
-                         tools (assoc :tools tools)
+                        {:model       model 
+                         :max_tokens  1024
+                         ;;:system      nil ;;  (system-prompt) 
+                         :messages    @messages
+                         :temperature 0
+                         :stream      false} 
+                        tools (assoc :tools tools)
                          tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
-                      (request-anthropic-messages))]
+                       (request-anthropic-messages))]
         (if (:error response)
           {:error   true
            :message (:message response)}
           response))))
-   (add-tool-result [this tool-use] (add-tool-result this tool-use nil))
-   (add-tool-result [this tool-use clients]
-                    (let [result (tool-time tool-use)
-                          msg    {:role    "user"
-                                  :content [{:type        "tool_result"
-                                             :tool_use_id (tool-use :id)
-                                             :content     (result :result)}]}]
-                      (parse-response this (prompt-ai this msg))))
-   (get-last-text [this]
-                  (let [msg (peek @messages)]
-                    (assoc msg :content (get-in msg [:content 0 :text])))))
+  (add-tool-result [this tool-use] (add-tool-result this tool-use nil))
+  (add-tool-result [this tool-use clients]
+                   (let [result (tool-time tool-use)
+                         msg    {:role    "user"
+                                 :content [{:type        "tool_result"
+                                            :tool_use_id (tool-use :id)
+                                            :content     (result :result)}]}]
+                     (parse-response this (prompt-ai this msg))))
+  (get-last-text [this]
+                 (let [msg (peek @messages)]
+                   (assoc msg :content (get-in msg [:content 0 :text])))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -306,9 +301,9 @@
   [tool-call]
   (let [call-fn (get-in tool-call [:function :name])
         args    (json/parse-string (get-in tool-call [:function :arguments]) true)] 
-        {:tool   call-fn
-         :result "Tools are not implemented in vanilla chat."
-         :error  false}))
+       {:tool   call-fn
+        :result "Tools are not implemented in vanilla chat."
+        :error  false}))
 
 (defn anthropic-tool-time
   "Stub function"

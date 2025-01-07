@@ -55,17 +55,21 @@
 <body class="font-sans">
     <div class="flex h-full">
         <div class="container w-2/5 min-h-screen p-6">
+            <div class="flex justify-end items-center space-x-4">
+                <a href="#" onclick="save()" class="text-blue-600 hover:text-blue-400">Save</a>
+                <a href="#" onclick="stopApp()" class="text-blue-600 hover:text-blue-400">Stop</a>
+            </div>
             <div id="modal-container"></div>
             <div id="content" class="h-[80vh] overflow-y-auto bg-white"></div>
             <div id="input-area" class="p-4 flex items-center bg-white">
                 <div class="relative w-full h-24">
-                    <textarea id="message" placeholder="Type your message here..." class="flex-grow p-4 h-24 resize-none focus:outline-none"></textarea>
-                    <button id="send" class="absolute bottom-2 right-2 inline-flex items-center justify-center w-20 h-10 bg-black text-white font-semibold rounded-full hover:bg-blue-400 focus:outline-none">Send</button>
-                </div>
+                    <textarea id="message" placeholder="Your message here. Use Shift+Enter to send." class="flex-grow p-4 h-24 resize-none focus:outline-none"></textarea>
+                    <button id="send" class="absolute bottom-0 right-0 inline-flex items-center justify-center w-12 h-10 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-400 focus:outline-none">Send</button>                
+                </div>            
             </div>
         </div>
-        <div class="container w-3/5 min-h-screen bg-gray-100 ">
-            <div id="canvas" class="h-full bg-gray-100 p-4 flex items-center justify-center">
+        <div class="container w-3/5 min-h-screen bg-gray-100">
+            <div id="canvas" class="h-full bg-gray-100 flex items-center justify-center">
                 <div id="vis"></div>
             </div>
         </div>
@@ -96,6 +100,10 @@
             }
         }
 
+        function save() {
+            ws.send(JSON.stringify({type: 'save'}));
+        }
+
         function updateVegaViz(spec) {
             vegaEmbed('#vis', spec)
                 .then(() => console.log('Visualization updated.'))
@@ -116,10 +124,10 @@
             const message = JSON.parse(event.data);
             // console.log("Received message:", message);
             switch (message.type) {
-                case 'connected':
+                case 'system-message':
                     contentDiv.innerHTML += `<div class="system-message">${message.message}</div>`;
                     break;
-                case 'dcc_set':
+                case 'dcc-set':
                     contentDiv.innerHTML += `<div class="system-message">(DCC set to: ${message.dcc})</div>`;
                     break;
                 case 'observation-message':
@@ -167,12 +175,21 @@
             contentDiv.innerHTML += '<div class="system-message">Connection closed.</div>';
         };
 
-        sendButton.addEventListener('click', function() {
+        function sendMessage() {
             const message = messageInput.value.trim();
             if (message !== '') {
                 ws.send(JSON.stringify({type: 'chat', content: message}));
                 contentDiv.innerHTML += `<div class="user-message">${message}</div>`;
                 messageInput.value = '';
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey) {
+                e.preventDefault();
+                sendMessage();
             }
         });
 
