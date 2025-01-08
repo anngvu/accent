@@ -1,5 +1,5 @@
 name: Table Query and Viz Benchmarking / Experience Report
-description: Report your table and query viz testing experience and share any discovered issues, ideas, or other insights.
+description: Report your Synapse table and query viz experiment and share any discovered issues, ideas, or other insights.
 title: "Table Query and Viz Experience Report"
 labels: []
 projects: []
@@ -10,30 +10,30 @@ body:
     attributes:
       value: |
         ## Instructions for trying out table query and viz with Syndi
-        1. Choose a table that you know well and that another Sage employee can access, since it will be easier to reproduce and understand.
-        2. Add documentation to the root Wiki page for the table.
-           Try to at least describe the columns and provide 1-2 example queries. 
-           This is inserted as context so *you* are the one doing "prompt engineering"; feel free to experiment with contextual content to improve the results. 
-        3. Create benchmark questions. Try for between 4-20 questions with a variety ranging from "easy" to "hard". 
+        - [ ] Choose a table that you know well and that another Sage employee can access to allow easier reproduction and understanding.
+        - [ ] Add documentation to the table's root Wiki page.
+           Try to at least describe the columns and provide at least 1-2 example queries. 
+           These are inserted as context and allows you to do "prompt engineering"; experiment with this contextual content to improve the results. 
+        - [ ] Create benchmark questions. The number of questions depend on your table, but try for at least 3 questions with a variety ranging from "easy" to "hard". 
         ## How your report will be used
-        We'll use this to understand:
-        - what type of Synapse table data are of interest/fair game (aside from the obvious portal-related tables)
-        - how types of table data work well or not with the current defaults
-        - how users try to optimize documentation for AI reusability
-        - the range of natural conversations for table query/viz tasks and what issues may look like
+        Shared results will be used to understand:
+        - What type of Synapse table data are of interest/fair game (aside from the obvious portal-related tables)
+        - How types of table data work well or not with the current defaults
+        - How users try to optimize documentation for AI reusability
+        - Range of natural queries and conversation flow for table-related tasks, and what common issues may look like
   - type: input
-    id: which-table
+    id: table-id
     attributes:
-      label: Which Synapse Table 
+      label: Synapse Table 
       description: Please enter the Synapse ID of your table.
-      placeholder: syn12345
+      placeholder: syn123456
     validations:
       required: true
   - type: textarea
-    id: what-questions
+    id: questions
     attributes:
       label: What questions did you use?
-      description: Attach documentation for questions you used or copy and paste them below. You can provide additional characterization of the questions as "easy", "medium", or "hard" and make a note for success of the resultant answer and/or visualization.
+      description: Attach documentation for questions you used or copy and paste them below. You can provide additional characterization of the questions such as "easy", "medium", or "hard" and your impression of the resultant answer and/or visualization.
       value: "Here are my questions and assessment: "
     validations:
       required: true
