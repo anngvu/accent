@@ -1,9 +1,7 @@
 ## ACCENT
 
 > [!WARNING]  
-> This is a **prototype** application.
-> Development is still working mitigating risks of using generative AI. 
-Our current target users are data professionals.   
+> This is **an application for research and rapid prototyping**, used to better understand and improve UX and mitigate risks of data professionals working with AI for data-related workflows. 
 
 ### Motivation
 
