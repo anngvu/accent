@@ -298,7 +298,10 @@
                      (parse-response this (prompt-ai this msg))))
   (get-last-text [this]
                  (let [msg (peek @messages)]
-                   (assoc msg :content (get-in msg [:content 0 :text])))))
+                   (assoc msg :content (get-in msg [:content 0 :text]))))
+
+  SaveOps
+  (save-messages [this] (save-messages! messages)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
