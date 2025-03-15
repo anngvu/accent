@@ -11,14 +11,17 @@
 (defprotocol AIProviderOps
   (parse-response [this resp] [this resp clients] "Handle AI provider response")
   (prompt-ai [this content] [this content tool-choice] "Send prompt to AI provider")
-  (add-tool-result [this tool-calls] [this tool-calls clients] "Add tool result to response")
-  (get-last-text [this] "Get last text in message history"))
+  (add-tool-result [this tool-calls] [this tool-calls clients] "Add tool result to response"))
 
 (defprotocol AIProviderStreamOps
-  (stream-response [this message tool-choice clients] "Handle streaming AI provider response"))
+  (stream-response [this message tool-choice clients] "Handle streaming AI provider response with client(s)"))
 
-(defprotocol SaveOps
+(defprotocol MessageOps
+  (get-last-text [this] "Get last text in message history")
   (save-messages [this] "Save messages to file"))
+
+(defprotocol UsageOps
+  (record-usage [this] "Record usage"))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Utils
@@ -93,9 +96,9 @@
    "certain obstacles oppose prompt service"
    "onset of prompting stress"])
 
-(defn save-messages!
-  [messages & [filename]]
-  (let [json-str (json/generate-string @messages)
+(defn save-state!
+  [state & [filename]]
+  (let [json-str (json/generate-string state)
         default-name (str "accent-" (System/currentTimeMillis) ".json")
         fname (or filename default-name)]
     (with-open [wr (io/writer fname)]
@@ -152,7 +155,7 @@
 ;; OpenAIProvider Definition
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(deftype OpenAIProvider [model messages tools tool-time]
+(deftype OpenAIProvider [model messages tools tool-time meta]
   AIProviderOps
   (parse-response [this resp] (parse-response this resp nil))
   (parse-response [this resp clients]
@@ -207,7 +210,6 @@
 
           (stream-response this msg forced-tool clients))
         (parse-response this (prompt-ai this msg forced-tool)))))
-  (get-last-text [this] "TODO")
 
   AIProviderStreamOps
   (stream-response [this message tool-choice clients]
@@ -241,14 +243,18 @@
                                                      :content content}))))
                     (swap! collected-response update :content str content))))))))))
   
-  SaveOps
-  (save-messages [this] (save-messages! messages)))
+  MessageOps
+  (get-last-text [this] "TODO")
+  (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json")))
+  
+  UsageOps
+  (record-usage [this] (save-state! (@meta :usage))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Anthropic Provider Def
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(deftype AnthropicProvider [model messages tools tool-time]
+(deftype AnthropicProvider [model messages tools tool-time meta]
   
   AIProviderOps
   (parse-response [this resp] (parse-response this resp nil))
@@ -296,12 +302,15 @@
                                             :tool_use_id (tool-use :id)
                                             :content     (result :result)}]}]
                      (parse-response this (prompt-ai this msg))))
+  
+  MessageOps
   (get-last-text [this]
                  (let [msg (peek @messages)]
                    (assoc msg :content (get-in msg [:content 0 :text]))))
+  (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json")))
 
-  SaveOps
-  (save-messages [this] (save-messages! messages)))
+  UsageOps
+  (record-usage [this] (save-state! (@meta :usage))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -395,13 +404,15 @@
   (OpenAIProvider. "gpt-4o" 
                    openai-messages
                    nil 
-                   tool-time))
+                   tool-time
+                   nil))
 
 (def AnthropicVanillaChat
   (AnthropicProvider. "claude-3-7-sonnet-latest" 
                       anthropic-messages 
                       nil
-                      anthropic-tool-time))
+                      anthropic-tool-time
+                      nil))
 
 (defn chat [provider-agent]
   (println "Chat initialized. Your message:") 

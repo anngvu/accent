@@ -338,13 +338,15 @@
   (chat/->OpenAIProvider "gpt-4o" 
                    openai-messages
                    tools 
-                   tool-time))
+                   tool-time
+                   nil))
 
 (def AnthropicSyndiAgent 
   (chat/->AnthropicProvider "claude-3-7-sonnet-latest" 
                       anthropic-messages
                       anthropic-tools 
-                      anthropic-tool-time))
+                      anthropic-tool-time
+                      nil))
 
 (defn -main [] 
   (setup) 

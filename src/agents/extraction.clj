@@ -196,6 +196,7 @@
   (chat/->OpenAIProvider "gpt-4o" 
                    openai-messages
                    tools 
-                   tool-time))
+                   tool-time
+                   nil))
 
 (defn -main [] (chat/chat OpenAIExtractionAgent))
