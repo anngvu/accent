@@ -169,6 +169,7 @@
             tool-calls    (msg :tool_calls)
             finish-reason (check-openai-finish-reason resp)]
         (swap! messages conj msg)
+        (swap! meta conj resp)
         (case finish-reason
           "length"        (as-last-message messages (peek @messages) resp)
           "tool_calls"    (add-tool-result this tool-calls clients)
@@ -248,7 +249,7 @@
   (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json")))
   
   UsageOps
-  (record-usage [this] (save-state! (@meta :usage))))
+  (record-usage [this] (save-state! @meta (str "accent-openai-meta-" (System/currentTimeMillis) ".json"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Anthropic Provider Def
@@ -310,7 +311,7 @@
   (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json")))
 
   UsageOps
-  (record-usage [this] (save-state! (@meta :usage))))
+  (record-usage [this] (save-state! @meta (str "accent-anthropic-meta-" (System/currentTimeMillis) ".json"))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;

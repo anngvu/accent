@@ -334,23 +334,39 @@
 
 (def anthropic-messages (atom []))
 
+(def meta (atom []))
+
 (def OpenAISyndiAgent 
   (chat/->OpenAIProvider "gpt-4o" 
                    openai-messages
                    tools 
                    tool-time
-                   nil))
+                   meta))
 
 (def AnthropicSyndiAgent 
   (chat/->AnthropicProvider "claude-3-7-sonnet-latest" 
                       anthropic-messages
                       anthropic-tools 
                       anthropic-tool-time
-                      nil))
+                      meta))
 
 (defn -main [] 
-  (setup) 
-  (chat/chat 
-    (if (= (@u :model-provider) "OpenAI")
-      OpenAISyndiAgent 
-      AnthropicSyndiAgent)))
+  (setup)
+
+  (let [agent (if (= (@u :model-provider) "OpenAI")
+                OpenAISyndiAgent 
+                AnthropicSyndiAgent)]
+    
+    ;; Add shutdown hook to handle Ctrl+C
+    (.addShutdownHook (Runtime/getRuntime)
+      (Thread. (fn []
+                 (try
+                   (chat/save-messages agent)
+                   ;; (chat/record-usage agent)
+                   (catch Exception e
+                     (mu/log ::shutdown-error 
+                             :msg "Error during shutdown" 
+                             :exception e)))
+                 (mu/log ::shutdown :msg "Goodbye!"))))
+    
+    (chat/chat agent)))
