@@ -41,9 +41,9 @@
       (future (stream-response OpenAISyndiAgent (:content parsed-msg) nil clients))
 
       "save"
-      (let [saved-file (save-messages OpenAISyndiAgent)] 
+      (let [saved-messages (save-messages OpenAISyndiAgent)] 
         (doseq [client @clients]
-          (httpkit/send! client (json/generate-string {:type "system-message" :message (str "Saved as " saved-file ".")}))))
+          (httpkit/send! client (json/generate-string {:type "system-message" :message (str "Saved as " saved-messages ".")}))))
 
       "stop"
       (do
