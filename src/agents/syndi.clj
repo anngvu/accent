@@ -362,7 +362,6 @@
       (Thread. (fn []
                  (try
                    (chat/save-messages agent)
-                   ;; (chat/record-usage agent)
                    (catch Exception e
                      (mu/log ::shutdown-error 
                              :msg "Error during shutdown" 
