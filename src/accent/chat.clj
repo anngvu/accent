@@ -245,10 +245,7 @@
   
   MessageOps
   (get-last-text [this] "TODO")
-  (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json")))
-  
-  UsageOps
-  (record-usage [this] (save-state! @meta (str "accent-openai-meta-" (System/currentTimeMillis) ".json"))))
+  (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Anthropic Provider Def
