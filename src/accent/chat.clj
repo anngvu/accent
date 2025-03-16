@@ -20,8 +20,6 @@
   (get-last-text [this] "Get last text in message history")
   (save-messages [this] "Save messages to file"))
 
-(defprotocol UsageOps
-  (record-usage [this] "Record usage"))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Utils
@@ -309,10 +307,7 @@
   (get-last-text [this]
                  (let [msg (peek @messages)]
                    (assoc msg :content (get-in msg [:content 0 :text]))))
-  (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json")))
-
-  UsageOps
-  (record-usage [this] (save-state! @meta (str "accent-anthropic-meta-" (System/currentTimeMillis) ".json"))))
+  (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json"))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
