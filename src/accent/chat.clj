@@ -179,7 +179,6 @@
                     (as-user-message content)
                     content)]
       (swap! messages conj message)
-      (mu/log ::usage (get resp :usage))
       (let [response (->
                       (cond->
                        {:model model
@@ -267,6 +266,7 @@
             stop-reason (:stop_reason resp)
             tool-use (->>(filter #(= "tool_use" (:type %)) content)(first))]
         (swap! messages conj msg)
+        (mu/log ::usage (get resp :usage))
         (case stop-reason
           "max_tokens"    (as-last-message messages (get-last-text this) resp)
           "tool_use"      (add-tool-result this tool-use)
