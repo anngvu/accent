@@ -169,7 +169,7 @@
             tool-calls    (msg :tool_calls)
             finish-reason (check-openai-finish-reason resp)]
         (swap! messages conj msg)
-        (swap! meta conj resp)
+        (mu/log ::usage (get resp :usage))
         (case finish-reason
           "length"        (as-last-message messages (peek @messages) resp)
           "tool_calls"    (add-tool-result this tool-calls clients)
@@ -181,6 +181,7 @@
                     (as-user-message content)
                     content)]
       (swap! messages conj message)
+      (mu/log ::usage (get resp :usage))
       (let [response (->
                       (cond->
                        {:model model
