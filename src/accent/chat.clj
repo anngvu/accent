@@ -167,7 +167,7 @@
             tool-calls    (msg :tool_calls)
             finish-reason (check-openai-finish-reason resp)]
         (swap! messages conj msg)
-        (mu/log ::usage (get resp :usage))
+        (mu/log ::usage :data (get resp :usage))
         (case finish-reason
           "length"        (as-last-message messages (peek @messages) resp)
           "tool_calls"    (add-tool-result this tool-calls clients)
@@ -268,7 +268,7 @@
             stop-reason (:stop_reason resp)
             tool-use (->>(filter #(= "tool_use" (:type %)) content)(first))]
         (swap! messages conj msg)
-        (mu/log ::usage (get resp :usage))
+        (mu/log ::usage :data (get resp :usage))
         (case stop-reason
           "max_tokens"    (as-last-message messages (get-last-text this) resp)
           "tool_use"      (add-tool-result this tool-use)
