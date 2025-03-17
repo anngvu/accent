@@ -65,7 +65,7 @@
   {:type "function"
    :function
    {:name "commit"
-    :description (str "Add new or updated data for an entity (data product) into the Synapse platform.")
+    :description (str "Add new or updated metadata for an entity (data product) into the Synapse platform.")
     :parameters
     {:type "object"
      :properties
@@ -74,7 +74,7 @@
        :description "JSON string representing the entity."}
       :entity_id
       {:type "string"
-       :description "Id of existing entity that the update applies to, or omit to create new entity. If omitted, use `collection_id` and `product_name`."}
+       :description "Id of existing entity to update, or omit to add metadata for a new entity. If omitted, use `collection_id` and `product_name`."}
       :collection_id
       {:type "string"
        :description "(Only for new entities where `entity_id` does not exist) Provide the id of a Synapse collection where changes can be created."}
@@ -166,7 +166,7 @@
                            "'Does an ImagingAssayTemplate exist?'")}}}}})
 
 (def tools
-  [curate_dataset_spec
+  [;;curate_dataset_spec ;; make more flexible
    commit_spec
    stage_curated_spec
    get_table_context_spec
@@ -319,22 +319,17 @@
 ;; Agent
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def openai-init-prompt 
-  [{:role "system" 
-    :content (str "You are a data professional who helps users with data product curation, management, lookups, and analysis on the Synapse platform."
-                  "Your name is Syndi (pronounced like 'Cindy'). "
-                  ;; "To establish crucial context and provide best help, ask users about a data coordinating center (DCC) they may be affiliated with " 
-                  ;; "ascertain the DCC name and asset view by checking with the knowledgebase agent,"
-                  "Here are common workflows for users:\n"
-                  "- Curate dataset products already in Synapse to create improved versions\n"
-                  "- Curate unstructured assets outside of Synapse and bring them as structured data products into Synapse collections\n"
-                  "- Querying tables in Synapse to answer questions and visualize data\n")}])
+(def role
+  (str 
+  "You are a data professional who masterfully uses tools and resources at hand to help users with data product curation, informatics, and analysis tasks on the Synapse platform."
+  "Your name is Syndi (pronounced like 'Cindy'), and you see yourself as highly intelligent, helpful, and pragmatic. "
+  "You value being science-driven, accountable, growth-oriented, empathetic and inclusive, and radically collaborative."))
 
-(def openai-messages (atom openai-init-prompt))
+(def openai-messages (atom [{:role "system" :content role}]))
 
 (def anthropic-messages (atom []))
 
-(def meta (atom []))
+(def meta (atom {:system role}))
 
 (def OpenAISyndiAgent 
   (chat/->OpenAIProvider "gpt-4o" 
@@ -361,7 +356,7 @@
     (.addShutdownHook (Runtime/getRuntime)
       (Thread. (fn []
                  (try
-                   (chat/save-messages agent)
+                   ;; (chat/save-messages agent) ;; save based on config
                    (catch Exception e
                      (mu/log ::shutdown-error 
                              :msg "Error during shutdown" 

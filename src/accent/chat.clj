@@ -18,8 +18,8 @@
 
 (defprotocol MessageOps
   (get-last-text [this] "Get last text in message history")
-  (save-messages [this] "Save messages to file"))
-
+  (save-messages [this] "Save messages to file")
+  (reset-messages [this] "Reset messages to initial message state"))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Utils
@@ -185,7 +185,7 @@
                         :messages @messages
                         :stream (@u :stream)}
                        tools (merge {:tools tools :parallel_tool_calls false})
-                        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
+                       tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
                       (request-openai-completions))]
         (if (:error response)
           {:error true
@@ -244,7 +244,8 @@
   
   MessageOps
   (get-last-text [this] "TODO")
-  (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json"))))
+  (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json")))
+  (reset-messages [this] (reset! messages [{:role "system" :content (@meta :system)}])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Anthropic Provider Def
@@ -280,12 +281,12 @@
                        (cond->
                         {:model       model 
                          :max_tokens  1024
-                         ;;:system      nil ;;  (system-prompt) 
                          :messages    @messages
                          :temperature 0
                          :stream      false} 
+                        (@meta :system) (assoc :system (@meta :system))
                         tools (assoc :tools tools)
-                         tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
+                        tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
                        (request-anthropic-messages))]
         (if (:error response)
           {:error   true
@@ -304,7 +305,8 @@
   (get-last-text [this]
                  (let [msg (peek @messages)]
                    (assoc msg :content (get-in msg [:content 0 :text]))))
-  (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json"))))
+  (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json")))
+  (reset-messages [this] (reset! messages [])))
 
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -394,19 +396,21 @@
 
 (def anthropic-messages (atom [])) ;; system prompt is not in messages
 
+(def meta (atom {}))
+
 (def OpenAIVanillaChat 
   (OpenAIProvider. "gpt-4o" 
                    openai-messages
                    nil 
                    tool-time
-                   nil))
+                   meta))
 
 (def AnthropicVanillaChat
   (AnthropicProvider. "claude-3-7-sonnet-latest" 
                       anthropic-messages 
                       nil
                       anthropic-tool-time
-                      nil))
+                      meta))
 
 (defn chat [provider-agent]
   (println "Chat initialized. Your message:") 
