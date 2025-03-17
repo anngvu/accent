@@ -18,7 +18,7 @@
 
 (defprotocol MessageOps
   (get-last-text [this] "Get last text in message history")
-  (save-messages [this] "Save messages to file")
+  (save-messages [this] [this file] "Save messages to file")
   (reset-messages [this] "Reset messages to initial message state"))
 
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -245,6 +245,7 @@
   MessageOps
   (get-last-text [this] "TODO")
   (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json")))
+  (save-messages [this file] (save-state! @messages file))
   (reset-messages [this] (reset! messages [{:role "system" :content (@meta :system)}])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -306,6 +307,7 @@
                  (let [msg (peek @messages)]
                    (assoc msg :content (get-in msg [:content 0 :text]))))
   (save-messages [this] (save-state! @messages (str "accent-anthropic-messages-" (System/currentTimeMillis) ".json")))
+  (save-messages [this file] (save-state! @messages file))
   (reset-messages [this] (reset! messages [])))
 
 
