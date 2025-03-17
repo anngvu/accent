@@ -335,13 +335,16 @@
 
 (defn convert-tools-for-anthropic
   "Convert OpenAI tools schema to Anthropic tools schema"
-  [openai-tools]
-  (mapv (fn [tool]
+  [openai-tools & [cache-breakpoint?]]
+  (let [tools-count (count openai-tools)]
+    (mapv (fn [tool idx]
+        (cond->
           {:name (get-in tool [:function :name])
            :description (get-in tool [:function :description])
            :input_schema (-> tool
-                             (get-in [:function :parameters]))})
-        openai-tools))
+                             (get-in [:function :parameters]))}
+          (and cache-breakpoint? (= idx (dec tools-count))) (assoc :cache_control {"type" "ephemeral"})))
+        openai-tools (range tools-count))))
 
 (def search_tool_spec
   "Example of a tool spec for a search tool; not used."

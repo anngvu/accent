@@ -178,7 +178,7 @@
    ;; call_knowledgebase_agent_spec ;; being refactored
    ])
 
-(def anthropic-tools (chat/convert-tools-for-anthropic tools))
+(def anthropic-tools (chat/convert-tools-for-anthropic tools true))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Tool call wrappers
