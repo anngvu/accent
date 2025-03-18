@@ -59,27 +59,29 @@
       (assoc :total-tokens (get-in response [:usage :total_tokens]))))
 
 (defn request-openai-completions
-  [body & [as]]
+  [body & [m]]
   (try
     (-> (client/post "https://api.openai.com/v1/chat/completions"
                      {:headers {"Content-Type"  "application/json"
                                 "Authorization" (str "Bearer " (@u :oak))}
                       :body    (json/generate-string body)
-                      :as      (or as (if (@u :stream) :stream :string))
-                      :timeout 25000}))
+                      :as      (or (:as m) (if (@u :stream) :stream :string))
+                      :connect-timeout (or (:connect-timeout m) 10000)
+                      :timeout (or (:timeout m) 25000)}))
     (catch Exception e 
       {:error   true
        :message (str (.getMessage e))})))
 
 (defn request-anthropic-messages
-  [body]
+  [body & [m]]
   (try
     (client/post "https://api.anthropic.com/v1/messages"
                  {:headers {"Content-Type"      "application/json"
                             "x-api-key"         (@u :aak)
                             "anthropic-version" "2023-06-01"}
                   :body    (json/generate-string body)
-                  :timeout 25000})
+                  :connect-timeout (or (:connect-timeout m) 10000)
+                  :timeout (or (:timeout m) 25000)})
     (catch Exception e
       {:error   true
        :message (str (.getMessage e))})))
@@ -260,9 +262,9 @@
   (parse-response [this resp clients]
     (if (:error resp)
       (do
-        (println "Error occurred:" (:error resp))
+        (println "Error occurred:" (resp :message))
         {:role    "system"
-         :content (str "An error occurred: " (:error resp))})
+         :content (str "An error occurred: " (resp :message))})
       (let [resp       (json/parse-string (:body resp) true)
             content    (:content resp)
             msg        {:role "assistant" :content content}
@@ -292,7 +294,8 @@
                        (request-anthropic-messages))]
         (if (:error response)
           {:error   true
-           :message (:message response)}
+           :type    (get-in response [:error :type])
+           :message (get-in response [:error :message])}
           response))))
   (add-tool-result [this tool-use] (add-tool-result this tool-use nil))
   (add-tool-result [this tool-use clients]
