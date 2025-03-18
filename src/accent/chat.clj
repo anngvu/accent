@@ -294,10 +294,9 @@
                        (request-anthropic-messages))]
         (if (:error response)
           (do 
-            (mu/log ::error :response-data response)
+            (mu/log ::error :data response)
             {:error   true
-            :type    (get-in response [:error :type])
-            :message (get-in response [:error :message])}
+             :message (get response :message)}
           )
           response))))
   (add-tool-result [this tool-use] (add-tool-result this tool-use nil))
