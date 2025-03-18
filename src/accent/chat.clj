@@ -293,6 +293,7 @@
                         tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
                        (request-anthropic-messages))]
         (if (:error response)
+          (mu/log ::error :response-data response)
           {:error   true
            :type    (get-in response [:error :type])
            :message (get-in response [:error :message])}
