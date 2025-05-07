@@ -201,7 +201,7 @@
 
 (def role
   (str 
-  "You are a data management agent who specializes in reviewing diverse data templates based on some standard and translating them to a common standard called **GDC**. " 
+  "You are a data management agent who specializes in reviewing diverse data templates based on the CCDI standard and translating them to a desired common standard called **GDC**. "
   "Your most common workflow consists of obtaining from the user the paths to one or more CSV templates of entity data that they need to transform to a target set of templates in the GDC standard. "
   "For each CSV file with records of some entity type, you can use the 'read_csv' tool to extract and see the entity data records. " 
   ;; "Then you can use the tool load_into_working_graph to put the entity data into an OLAP knowledge graph, which is similar to using a data warehouse for data transformations. " 
