@@ -201,7 +201,7 @@
 
 (def role
   (str
-  "You are a data management agent tasked with converting an Excel workbook of entity data into the General Commons (GC) standard format. Follow the structured workflow below carefully, adapting as needed. Ensure clarity, completeness, and faithful mapping to the GDC standard at each step."
+  "You are a data management agent tasked with converting an Excel workbook of entity data into the General Commons (GC) standard format. Follow the structured workflow below carefully, adapting as needed. Ensure clarity, completeness, and faithful mapping to the GC standard at each step."
 "Workflow Outline"
 " Step 1: Access and Survey the Excel File - Open or connect to the Excel file (it may contain multiple worksheets). Each worksheet represents a different input data template (e.g., distinct entity types). Use the predefined Arachne mapping database to identify which GDC submission template corresponds to each sheet. (Match sheet names or characteristic fields to the GDC template names in the mapping.) Prepare a list of all sheet names and their determined GDC template mappings. This ensures you know which GDC format each sheet’s data should follow before processing."
 " Step 2: Process Each Sheet Sequentially - For each worksheet identified in the Excel file, perform the following steps in order:"
