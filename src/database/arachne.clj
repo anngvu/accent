@@ -3,7 +3,10 @@
   (:require [arachne.aristotle :as aa]
             [arachne.aristotle.registry :as reg]
             [arachne.aristotle.query :as q]
+            [clojure.string :as str]
             [clojure.java.io :as io]
+            [clojure.data.csv :as csv]
+            [cheshire.core :as json]
             [csv2rdf.csvw :as csvw])
   (:import [java.io File]
            [java.nio.file Files Path Paths]
@@ -84,17 +87,28 @@
               [?match :rdfs/label ?match_label]] 
             `{?label ~label})))
 
+(defn get-template-columns
+  "Get template columns (DOES NOT RETURN IT IN ORDER)"
+  [template]
+  (reg/with {'g "http://syn.org/"}
+    (q/run @kg '[?attr ?label]
+      `[:bgp
+        [?attr :g/node ~template]
+        [?attr :rdfs/label ?label]
+        ])))
+
 (defn describe-template-columns
   "Describe columns in template in order"
   [template]
   (let [result
         (reg/with {'g "http://syn.org/"}
-              (q/run @kg '[?position ?column]
+              (q/run @kg '[?position ?column ?label]
                 `[:bgp
                   [?s :rdf/type :g/ColumnPosition]
                   [?s :g/template ~template]
                   [?s :g/column ?column]
                   [?s :g/position ?position]
+                  [?column :rdfs/label ?label]
                 ]
                 ))]
     (sort-by first result)
@@ -123,79 +137,81 @@
                 [?template :rdf/type :g/Template]
                 [?template :dct/conformsTo ~uri]])))
 
-(defn create-temp-file
-  "Creates a temporary file with the given prefix and extension"
-  [prefix ext]
-  (let [temp-file (Files/createTempFile prefix ext (into-array FileAttribute []))]
-    (.toString temp-file)))
 
-(defn csv-to-rdf-temp
-  "Converts a CSV file to the specified RDF format using dynamically created metadata.
+;; UTILS
 
-   Parameters:
-   - csv-path: Path to the CSV file
-   - create-metadata-fn: Function that takes csv-path and returns the path to created metadata file
-   - options: Map of optional parameters including:
-     - :format - Output format keyword (:turtle, :ntriples, etc.)
-     - :mode - Conversion mode (:standard, :minimal, :annotated)
-     - :prefix - Prefix for temporary files
-     - :temp-name - Base name for the output file"
-  [csv-path create-metadata-fn & {:keys [format mode prefix temp-name]
-                                 :or {format :turtle
-                                      mode :minimal
-                                      prefix "csv2rdf"
-                                      temp-name "output"}}]
-  (let [format-extensions {:turtle ".ttl"
-                           :ntriples ".nt"
-                           :rdfxml ".rdf"
-                           :jsonld ".jsonld"
-                           :trig ".trig"
-                           :nquads ".nq"}
+(defn- get-file-basename
+  "Extracts the basename of a file from its path (removes directory and last extension)."
+  [file-path]
+  (let [filename (.getName (io/file file-path))]
+    (if (.contains filename ".")
+      (first (str/split filename #"\.(?=[^\.]+$)")) ; Split on the last dot
+      filename)))
 
-        ;; Get the appropriate extension
-        ext (get format-extensions format ".ttl")
-
-        ;; Create a temporary directory
-        temp-dir (Files/createTempDirectory prefix (into-array FileAttribute []))
-
-        ;; Create a file in the temp directory with the appropriate extension
-        temp-file (.resolve temp-dir (str temp-name ext))
-        temp-file-path (.toString temp-file)
-
-        ;; Convert CSV path to File object
-        csv-file (io/file csv-path)]
-
-    (println "Converting" csv-path "to" (name format) "...")
-    (println "Writing output to" temp-file-path)
-
-    ;; Generate metadata file using the provided function
-    (println "Generating metadata file...")
-    (let [metadata-path (create-metadata-fn csv-path)
-          metadata-file (io/file metadata-path)]
-
-      (println "Using dynamically created metadata from" metadata-path)
-      (println "Conversion mode:" (name mode))
-
-      ;; Convert CSV to RDF and write to the temp file
-      (csvw/csv->rdf->file csv-file metadata-file temp-file-path {:mode mode})
-
-      ;; Return both the RDF output path and metadata path for potential cleanup
-      {:rdf-path temp-file-path
-       :metadata-path metadata-path})))
-
-(defn check-for-metadata-template
-  [csv-path])
-
-(defn create-csvw-metadata
+(defn- get-csv-headers
+  "Reads the first line of a CSV file, considered as headers."
   [csv-path]
-  ;; Create a temp JSON metadata based on the template
-  (let [metadata-path (create-temp-file "metadata" ".json")]
-    "sequencing_file_metadata.json"))
+  (with-open [reader (io/reader csv-path)]
+    (try
+      (-> (csv/read-csv reader)
+          first)
+      (catch Exception e
+        (println (str "Error reading CSV headers from " csv-path ": " (.getMessage e)))
+        nil))))
+
+(defn generate-csvw-metadata
+  "Takes a CSV file path and generates a CSVW JSON metadata string using Cheshire.
+   - Property URLs are based on the CSV file's basename for non-dotted headers.
+   - Dotted headers like 'entity.property' become 'http://syn.org/ccdi/entity/property'.
+   - 'datatype' is omitted from column definitions."
+  [csv-path]
+  (let [csv-file (io/file csv-path)]
+    (if-not (.exists csv-file)
+      (throw (java.io.FileNotFoundException. (str "CSV file not found: " csv-path)))
+      (let [filename (.getName csv-file)
+            basename (get-file-basename csv-path)
+            headers (get-csv-headers csv-path)]
+
+        (if (empty? headers)
+          (throw (IllegalArgumentException. (str "CSV file is empty, has no header, or is unreadable: " csv-path)))
+
+          (let [column-definitions (mapv
+                                    (fn [header]
+                                      (let [parts (str/split header #"\." 2) ; Split on the first dot, max 2 parts
+                                            prop-url (if (> (count parts) 1) ; If a dot was found and split into at least two parts
+                                                       (str "http://syn.org/ccdi/" (first parts) "/" (second parts))
+                                                       (str "http://syn.org/ccdi/" basename "/" header))]
+                                        {:name header
+                                         :titles header
+                                         :propertyUrl prop-url}))
+                                    headers)
+
+                virtual-column {:name "generated_rdf_type"
+                                :virtual true
+                                :propertyUrl "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+                                :valueUrl (str "http://syn.org/ccdi/" basename)}
+
+                all-columns (conj column-definitions virtual-column)
+
+                csvw-map {"@context" "http://www.w3.org/ns/csvw"
+                          "url" filename
+                          "tableSchema" {"aboutUrl" (str "http://syn.org/ccdi/repo/" basename "/{_row}")
+                                         "columns" all-columns}}]
+            (json/generate-string csvw-map)))))))
+
+(defn csv-to-rdf
+  [csv-path]
+  (let [csv-file (io/file csv-path)
+        tmp-path (java.io.File/createTempFile "metadata" ".json")
+        meta-tmp-file (spit tmp-path (generate-csvw-metadata csv-path))
+        meta-file (io/file tmp-path)
+        output-file (java.io.File/createTempFile "data" ".ttl")]
+  (csvw/csv->rdf->file csv-file meta-file output-file {:mode :minimal})
+  output-file))
 
 (defn load-csv-into-graph
   [csv-path]
-  (let [transformed-data (csv-to-rdf-temp csv-path create-csvw-metadata)]
-    (load-file-into-graph (transformed-data :rdf-path))))
+  (with-out-str (load-file-into-graph (csv-to-rdf csv-path))))
 
 ;; TESTS
 ;;
@@ -236,4 +252,4 @@
 
 (defn run-sparql-query [sparql]
   (let [op (q/parse sparql)]
-    (q/run graph op)))
+    (q/run @kg op)))
