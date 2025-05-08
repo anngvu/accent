@@ -82,21 +82,21 @@
       }}
     :required ["file"]}})
 
-(def write_csv_spec
+(def write_file_spec
   {:type "function"
    :function
-   {:name "write_csv"
-    :description "Write data to csv file."
+   {:name "write_file"
+    :description "Write text content (data or code) to a file."
     :parameters
     {:type "object"
      :properties
-     {:data
+     {:content
       {:type "string"
-       :description "CSV data conforming to a standard template."}
+       :description "Content to be written to the file."}
       :filename
       {:type "string"
-       :description "Name for the csv file to be written, including the .csv extension."}}}
-    :required ["data" "filename"] }})
+       :description "Name for the file to be written, including the extension."}}}
+    :required ["content" "filename"] }})
 
 
 (def tools
@@ -105,7 +105,7 @@
    get_template_meta_spec
    list_standard_templates_spec
    read_csv_spec
-   write_csv_spec
+   write_file_spec
    ])
 
 (def anthropic-tools (chat/convert-tools-for-anthropic tools true))
@@ -147,9 +147,9 @@
     {:result text 
      :type :success}))
 
-(defn wrap-write-csv 
-  [{:keys [data filename]}]
-  (let [result (spit filename data)]
+(defn wrap-write-file 
+  [{:keys [content filename]}]
+  (let [result (spit filename content)]
     {:result "File written successfully."
      :type :success}))
 
@@ -176,7 +176,7 @@
                      "get_template_meta"               (wrap-get-template-meta args)
                      "list_standard_templates"         (wrap-list-standard-templates args)
                      "read_csv"                        (wrap-read-csv args)
-                     "write_csv"                       (wrap-write-csv args)
+                     "write_file"                      (wrap-write-file args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (->
          (if (map? result) (merge  {:tool call-fn} result) {:tool call-fn :result result})
@@ -208,7 +208,7 @@
   "Given the input, you can query for information about matching target attributes and target templates to better understand specifications for the transformation. " 
   "For example, given a CSV file called 'sample.csv' that may contain column 'sample_attribute_1', you can see whether 'sample_attribute_1' matches an attribute in the GDC standard, which GDC template it's used in, and acceptable values for the GDC version of the attribute. "
   "You may retrieve the list of potential target templates in the GDC standard. Note that the inputs may not have a 1:1 match to the GDC templates, so not all GDC templates are output targets, only the relevant ones. "
-  "Once you have determined which GDC templates to output and how to translate the data sufficiently, use the 'write_csv' tool. " 
+  "Once you have determined which GDC templates to output and how to translate the data sufficiently, use the 'write_file' tool. " 
   "You can adapt parts of the workflow as needed according to user needs and to get the best results, but in general seeing all csv file data first may be most optimal. "
    ))
 
