@@ -16,7 +16,7 @@
    :function
    {:name "find_matching_attribute"
     :description (str "Given a source attribute, find a matching attribute in a target attribute set. "
-                      "This will return the matching/pairing attribute if it exists. "
+                      "This will return the matching attribute if it exists. "
                       ;;"If matching attribute found, information like attribute description, etc. is also returned."
                       )
     :parameters
@@ -82,6 +82,18 @@
       }}
     :required ["file"]}})
 
+(def read_file_head_spec
+  {:type "function"
+   :function
+   {:name "read_file_head"
+    :description "Read only the first 5 lines of text content of a local file or file at a URL. This can handle larger files."
+    :parameters
+    {:type "object"
+     :properties
+     {:file {:type "string"
+             :description "Local file path such as 'input/sample.csv' and 'examples/code.js', or URL such as 'https://raw.githubusercontent.com/codeforamerica/ohana-api/refs/heads/master/data/sample-csv/organizations.csv'"}}}
+    :required ["file"]}})
+
 (def write_file_spec
   {:type "function"
    :function
@@ -105,6 +117,7 @@
    get_template_meta_spec
    list_standard_templates_spec
    read_file_spec
+   read_file_head_spec
    write_file_spec
    ])
 
@@ -157,6 +170,15 @@
     {:result "File written successfully."
      :type :success}))
 
+(defn wrap-read-file-head
+  [{:keys [file]}] 
+  (with-open [rdr (clojure.java.io/reader file)]
+      (->>
+       (line-seq rdr)
+       (take 5)
+       (doall)
+       (str/join "\n"))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Custom tool time
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -179,7 +201,8 @@
                      "get_attribute_meta"              (wrap-get-attribute-meta args)
                      "get_template_meta"               (wrap-get-template-meta args)
                      "list_standard_templates"         (wrap-list-standard-templates args)
-                     "read_file"                        (wrap-read-file args)
+                     "read_file"                       (wrap-read-file args)
+                     "read_file_head"                  (wrap-read-file-head args)
                      "write_file"                      (wrap-write-file args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (->
