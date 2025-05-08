@@ -73,7 +73,7 @@
   {:type "function"
    :function
    {:name "read_file"
-    :description "Read text content accessible as a local file or via a URL. Files like Excel are *not* supported. Files larger than 100kB will not be read."
+    :description "Read text content accessible as a local file or via a URL. Files like Excel are *not* supported. Files larger than 100kb will not be read."
     :parameters
     {:type "object"
      :properties
@@ -143,9 +143,13 @@
 
 (defn wrap-read-file 
   [{:keys [file]}]
-  (let [text (slurp file)]
-    {:result text 
-     :type :success}))
+  (let [file-obj (java.io.File. file)
+         size-in-kb (/ (.length file-obj) 1024.0)]
+     (if (< size-in-kb 100)
+       {:result (slurp file)
+        :type :success}
+       {:result "File is too large."
+        :type :error})))
 
 (defn wrap-write-file 
   [{:keys [content filename]}]
