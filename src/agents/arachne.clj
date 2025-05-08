@@ -46,7 +46,7 @@
   {:type "function"
    :function
    {:name "get_template_meta"
-    :description (str "Get information about an entity template such as its attributes (columns) and their order.")
+    :description (str "Get information about an entity template such as its attributes (columns) and their order. Only available for GDC templates.")
     :parameters
     {:type "object"
      :properties
@@ -69,16 +69,16 @@
        :description "The data standard URI, of the format '<http://syn.org/{data_standard}>', i.e. '<http://syn.org/gdc>'. Currently, only GDC standard is supported."}}}
     :required ["standard_uri"]}})
 
-(def read_csv_spec
+(def read_file_spec
   {:type "function"
    :function
-   {:name "read_csv"
-    :description "Read data from a CSV file accessible as a local file or via a URL. Excel files are *not* supported."
+   {:name "read_file"
+    :description "Read text content accessible as a local file or via a URL. Files like Excel are *not* supported. Files larger than 100kB will not be read."
     :parameters
     {:type "object"
      :properties
      {:file {:type "string" 
-             :description "Local file path such as 'input/sample.csv' or URL such as 'https://raw.githubusercontent.com/codeforamerica/ohana-api/refs/heads/master/data/sample-csv/organizations.csv'"}
+             :description "Local file path such as 'input/sample.csv' and 'examples/code.js', or URL such as 'https://raw.githubusercontent.com/codeforamerica/ohana-api/refs/heads/master/data/sample-csv/organizations.csv'"}
       }}
     :required ["file"]}})
 
@@ -104,7 +104,7 @@
    get_attribute_meta_spec
    get_template_meta_spec
    list_standard_templates_spec
-   read_csv_spec
+   read_file_spec
    write_file_spec
    ])
 
@@ -141,7 +141,7 @@
     {:result (str result)
      :type :success}))
 
-(defn wrap-read-csv 
+(defn wrap-read-file 
   [{:keys [file]}]
   (let [text (slurp file)]
     {:result text 
@@ -175,7 +175,7 @@
                      "get_attribute_meta"              (wrap-get-attribute-meta args)
                      "get_template_meta"               (wrap-get-template-meta args)
                      "list_standard_templates"         (wrap-list-standard-templates args)
-                     "read_csv"                        (wrap-read-csv args)
+                     "read_file"                        (wrap-read-file args)
                      "write_file"                      (wrap-write-file args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (->
@@ -203,7 +203,7 @@
   (str 
   "You are a data management agent who specializes in reviewing diverse data templates based on the CCDI standard and translating them to a desired common standard called **GDC**. "
   "Your most common workflow consists of obtaining from the user the paths to one or more CSV templates of entity data that they need to transform to a target set of templates in the GDC standard. "
-  "For each CSV file with records of some entity type, you can use the 'read_csv' tool to extract and see the entity data records. " 
+  "For each CSV file with records of some entity type, you can use the 'read_file' tool to extract and see the entity data records. " 
   ;; "Then you can use the tool load_into_working_graph to put the entity data into an OLAP knowledge graph, which is similar to using a data warehouse for data transformations. " 
   "Given the input, you can query for information about matching target attributes and target templates to better understand specifications for the transformation. " 
   "For example, given a CSV file called 'sample.csv' that may contain column 'sample_attribute_1', you can see whether 'sample_attribute_1' matches an attribute in the GDC standard, which GDC template it's used in, and acceptable values for the GDC version of the attribute. "
