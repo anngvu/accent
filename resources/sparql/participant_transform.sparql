@@ -1,0 +1,45 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX gdc_part: <http://syn.org/gdc/participant/>
+PREFIX gdc_study: <http://syn.org/gdc/study/>
+PREFIX ccdi_part: <http://syn.org/ccdi/participant/>
+
+SELECT
+    ?col_0_type
+    ?col_1_phs_accession
+    ?col_2_study_participant_id
+    ?col_3_participant_id
+    ?col_4_race
+    ?col_5_sex
+    ?col_6_ethnicity
+    ?col_7_dbGaP_subject_id
+WHERE {
+    # Assume CCDI participant entities are instances of <http://syn.org/ccdi/participant>
+    ?ccdi_subject rdf:type <http://syn.org/ccdi/participant>
+
+    # 0: <http://syn.org/gdc/participant/type>
+    BIND("participant" AS ?col_0_type)
+
+    # 1: <http://syn.org/gdc/study/phs_accession> (No mapping from shared-elements)
+    BIND("" AS ?col_1_phs_accession)
+
+    # 2: <http://syn.org/gdc/participant/study_participant_id> (No mapping from shared-elements)
+    BIND("" AS ?col_2_study_participant_id)
+
+    # 3: <http://syn.org/gdc/participant/participant_id> maps to ccdi_part:participant_id
+    OPTIONAL { ?ccdi_subject ccdi_part:participant_id ?_participant_id . }
+    BIND(COALESCE(STR(?_participant_id), "") AS ?col_3_participant_id)
+
+    # 4: <http://syn.org/gdc/participant/race> maps to ccdi_part:race
+    OPTIONAL { ?ccdi_subject ccdi_part:race ?_race . }
+    BIND(COALESCE(STR(?_race), "") AS ?col_4_race)
+
+    # 5: <http://syn.org/gdc/participant/sex> maps to ccdi_part:sex_at_birth
+    OPTIONAL { ?ccdi_subject ccdi_part:sex_at_birth ?_sex_at_birth . }
+    BIND(COALESCE(STR(?_sex_at_birth), "") AS ?col_5_sex)
+
+    # 6: <http://syn.org/gdc/participant/ethnicity> (No mapping from shared-elements)
+    BIND("" AS ?col_6_ethnicity)
+
+    # 7: <http://syn.org/gdc/participant/dbGaP_subject_id> (No mapping from shared-elements)
+    BIND("" AS ?col_7_dbGaP_subject_id)
+}

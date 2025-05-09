@@ -1,0 +1,214 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Simple Mapping Specification with Quality Annotation",
+  "description": "A schema for defining transformations from a source CSV to one or more target CSVs, including mapping quality annotations. Transforms are specified using a combination of 'source' and 'value' fields.",
+  "type": "object",
+  "properties": {
+    "source_file": {
+      "type": "string",
+      "description": "Path to the source CSV file."
+    },
+    "targets": {
+      "type": "array",
+      "description": "An array of target file configurations.",
+      "items": { "$ref": "#/$defs/targetObject" },
+      "minItems": 1
+    }
+  },
+  "required": ["source_file", "targets"],
+  "$defs": {
+    "targetObject": {
+      "type": "object",
+      "properties": {
+        "output_file": {
+          "type": "string",
+          "description": "Filename of the target CSV to generate."
+        },
+        "mappings": {
+          "type": "array",
+          "description": "An array of mapping rules for fields in this target file.",
+          "items": { "$ref": "#/$defs/mappingRuleObject" },
+          "minItems": 1
+        }
+      },
+      "required": ["output_file", "mappings"],
+      "additionalProperties": false
+    },
+    "mappingQualityObject": {
+      "type": "object",
+      "description": "Describes the nature and confidence of the mapping.",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["exact", "inferred", "close_match", "review_needed", "partial_match", "placeholder"],
+          "description": "The assessed quality level of the mapping."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Confidence score for the mapping (0.0 to 1.0)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Textual explanation regarding the mapping quality."
+        }
+      },
+      "required": ["level"],
+      "additionalProperties": false
+    },
+    "mapValueObjectDefinition": {
+      "title": "Value Mapping Definition",
+      "type": "object",
+      "properties": {
+        "map": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean", "null"] },
+          "description": "Key-value pairs for direct value mapping. Keys are source values, values are target values."
+        },
+        "default_is_source": {
+          "type": "boolean",
+          "description": "If true and no 'map' entry found, use the original source value as the target value."
+        },
+        "default_literal": {
+          "type": ["string", "number", "boolean", "null"],
+          "description": "A literal default target value if no 'map' entry found and 'default_is_source' is false or absent."
+        }
+      },
+      "required": ["map"],
+      "additionalProperties": false
+    },
+    "otherFieldConditionDefinition": {
+      "title": "Other Field Condition",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the other source field to check." },
+        "equals": { "type": ["string", "number", "boolean", "null"], "description": "Value the other field should equal."},
+        "contains": { "type": "string", "description": "Substring the other field (if string) should contain." },
+        "matches_pattern": { "type": "string", "format": "regex", "description": "Regex pattern the other field (if string) should match."}
+      },
+      "required": ["name"],
+      "minProperties": 2,
+      "additionalProperties": false
+    },
+    "conditionItemDefinition": {
+      "title": "Conditional Logic Item",
+      "type": "object",
+      "properties": {
+        "if_source_is": { "type": ["string", "number", "boolean", "null"], "description": "Condition on the primary source field's value." },
+        "if_source_matches_pattern": { "type": "string", "format": "regex", "description": "Regex pattern for the primary source field's value." },
+        "if_other_field": { "$ref": "#/$defs/otherFieldConditionDefinition" },
+        "then": { "type": ["string", "number", "boolean", "null"], "description": "The target value if this condition set is met." }
+      },
+      "required": ["then"],
+      "anyOf": [
+          {"required": ["if_source_is"]},
+          {"required": ["if_source_matches_pattern"]},
+          {"required": ["if_other_field"]}
+      ],
+      "additionalProperties": false
+    },
+    "conditionalLogicObjectDefinition": {
+      "title": "Conditional Logic Definition",
+      "type": "object",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/conditionItemDefinition" },
+          "description": "List of conditions, evaluated in order. First match wins."
+        },
+        "default_is_source": {
+          "type": "boolean",
+          "description": "If true and no conditions met, use the original source value as the target value."
+        },
+        "default_literal": {
+          "type": ["string", "number", "boolean", "null"],
+          "description": "A literal default target value if no conditions met and 'default_is_source' is false or absent."
+        }
+      },
+      "required": ["conditions"],
+      "additionalProperties": false
+    },
+    "mappingRuleObject": {
+      "title": "Mapping Rule",
+      "description": "Defines how a single target field is populated.",
+      "oneOf": [
+        {
+          "title": "Direct Mapping Rule",
+          "type": "object",
+          "properties": {
+            "target": { "type": "string" },
+            "source": { "type": "string" },
+            "mapping_quality": { "$ref": "#/$defs/mappingQualityObject" }
+          },
+          "required": ["target", "source"],
+          "additionalProperties": false
+        },
+        {
+          "title": "Source-based Object Transformation Rule (Value Map or Conditional Logic)",
+          "type": "object",
+          "properties": {
+            "target": { "type": "string" },
+            "source": { "type": "string" },
+            "value": {
+              "type": "object",
+              "oneOf": [
+                { "$ref": "#/$defs/mapValueObjectDefinition" },
+                { "$ref": "#/$defs/conditionalLogicObjectDefinition" }
+              ]
+            },
+            "mapping_quality": { "$ref": "#/$defs/mappingQualityObject" }
+          },
+          "required": ["target", "source", "value"],
+          "additionalProperties": false
+        },
+        {
+          "title": "Generate UUID Rule (No Source Field)",
+          "type": "object",
+          "properties": {
+            "target": { "type": "string" },
+            "value": { "type": "string", "const": "uuid()", "description": "Generates a UUID." },
+            "mapping_quality": { "$ref": "#/$defs/mappingQualityObject" }
+          },
+          "required": ["target", "value"],
+          "additionalProperties": false
+        },
+        {
+          "title": "Copy from Context Rule (No Source Field)",
+          "type": "object",
+          "properties": {
+            "target": { "type": "string" },
+            "value": {
+              "type": "string",
+              "pattern": "^context\\([^)]+\\)$",
+              "description": "Copies a value from the processing context (e.g., 'context(file_id)'). The key is inside the parentheses."
+            },
+            "mapping_quality": { "$ref": "#/$defs/mappingQualityObject" }
+          },
+          "required": ["target", "value"],
+          "additionalProperties": false
+        },
+        {
+          "title": "Constant Literal Value Rule (No Source Field)",
+          "type": "object",
+          "properties": {
+            "target": { "type": "string" },
+            "value": {
+              "description": "A constant literal value (string, number, boolean, or null). Strings must not be 'uuid()' or match 'context(...)'.",
+              "not": {
+                "anyOf": [
+                  { "type": "string", "const": "uuid()" },
+                  { "type": "string", "pattern": "^context\\([^)]+\\)$" }
+                ]
+              },
+              "type": ["string", "number", "boolean", "null"]
+            },
+            "mapping_quality": { "$ref": "#/$defs/mappingQualityObject" }
+          },
+          "required": ["target", "value"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

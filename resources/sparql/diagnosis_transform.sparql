@@ -1,0 +1,107 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX gdc_diag: <http://syn.org/gdc/diagnosis/>
+PREFIX gdc_part: <http://syn.org/gdc/participant/>
+PREFIX ccdi_diag: <http://syn.org/ccdi/diagnosis/>
+
+SELECT
+    ?col_0_type
+    ?col_1_study_participant_id
+    ?col_2_study_diagnosis_id
+    ?col_3_diagnosis_id
+    ?col_4_disease_type
+    ?col_5_vital_status
+    ?col_6_primary_diagnosis
+    ?col_7_primary_site
+    ?col_8_age_at_diagnosis
+    ?col_9_tumor_grade
+    ?col_10_tumor_stage_clinical_m
+    ?col_11_tumor_stage_clinical_n
+    ?col_12_tumor_stage_clinical_t
+    ?col_13_morphology
+    ?col_14_incidence_type
+    ?col_15_progression_or_recurrence
+    ?col_16_days_to_recurrence
+    ?col_17_days_to_last_followup
+    ?col_18_last_known_disease_status
+    ?col_19_days_to_last_known_status
+    ?col_20_tissue_or_organ_of_origin
+    ?col_21_site_of_resection_or_biopsy
+    ?col_22_days_to_last_known_disease_status
+WHERE {
+    ?ccdi_subject rdf:type <http://syn.org/ccdi/diagnosis>
+
+    # 0: <http://syn.org/gdc/diagnosis/type>
+    BIND("diagnosis" AS ?col_0_type)
+
+    # 1: <http://syn.org/gdc/participant/study_participant_id> (No mapping)
+    BIND("" AS ?col_1_study_participant_id)
+
+    # 2: <http://syn.org/gdc/diagnosis/study_diagnosis_id> (No mapping)
+    BIND("" AS ?col_2_study_diagnosis_id)
+
+    # 3: <http://syn.org/gdc/diagnosis/diagnosis_id> (No mapping)
+    BIND("" AS ?col_3_diagnosis_id)
+
+    # 4: <http://syn.org/gdc/diagnosis/disease_type> (No mapping)
+    BIND("" AS ?col_4_disease_type)
+
+    # 5: <http://syn.org/gdc/diagnosis/vital_status> (No mapping)
+    BIND("" AS ?col_5_vital_status)
+
+    # 6: <http://syn.org/gdc/diagnosis/primary_diagnosis> (No mapping)
+    BIND("" AS ?col_6_primary_diagnosis)
+
+    # 7: <http://syn.org/gdc/diagnosis/primary_site> (No mapping)
+    BIND("" AS ?col_7_primary_site)
+
+    # 8: <http://syn.org/gdc/diagnosis/age_at_diagnosis> (No mapping)
+    BIND("" AS ?col_8_age_at_diagnosis)
+
+    # 9: <http://syn.org/gdc/diagnosis/tumor_grade> maps to ccdi_diag:tumor_grade
+    # Choosing ccdi_diag:tumor_grade over ccdi_diag:tumor_grade_source for direct semantic alignment.
+    OPTIONAL { ?ccdi_subject ccdi_diag:tumor_grade ?_tumor_grade . }
+    BIND(COALESCE(STR(?_tumor_grade), "") AS ?col_9_tumor_grade)
+
+    # 10: <http://syn.org/gdc/diagnosis/tumor_stage_clinical_m> maps to ccdi_diag:tumor_stage_clinical_m
+    OPTIONAL { ?ccdi_subject ccdi_diag:tumor_stage_clinical_m ?_ts_m . }
+    BIND(COALESCE(STR(?_ts_m), "") AS ?col_10_tumor_stage_clinical_m)
+
+    # 11: <http://syn.org/gdc/diagnosis/tumor_stage_clinical_n> maps to ccdi_diag:tumor_stage_clinical_n
+    OPTIONAL { ?ccdi_subject ccdi_diag:tumor_stage_clinical_n ?_ts_n . }
+    BIND(COALESCE(STR(?_ts_n), "") AS ?col_11_tumor_stage_clinical_n)
+
+    # 12: <http://syn.org/gdc/diagnosis/tumor_stage_clinical_t> maps to ccdi_diag:tumor_stage_clinical_t
+    OPTIONAL { ?ccdi_subject ccdi_diag:tumor_stage_clinical_t ?_ts_t . }
+    BIND(COALESCE(STR(?_ts_t), "") AS ?col_12_tumor_stage_clinical_t)
+
+    # 13: <http://syn.org/gdc/diagnosis/morphology> maps to ccdi_diag:diagnosis
+    OPTIONAL { ?ccdi_subject ccdi_diag:diagnosis ?_morphology_source . }
+    BIND(COALESCE(STR(?_morphology_source), "") AS ?col_13_morphology)
+
+    # 14: <http://syn.org/gdc/diagnosis/incidence_type> (No mapping)
+    BIND("" AS ?col_14_incidence_type)
+
+    # 15: <http://syn.org/gdc/diagnosis/progression_or_recurrence> (No mapping)
+    BIND("" AS ?col_15_progression_or_recurrence)
+
+    # 16: <http://syn.org/gdc/diagnosis/days_to_recurrence> (No mapping)
+    BIND("" AS ?col_16_days_to_recurrence)
+
+    # 17: <http://syn.org/gdc/diagnosis/days_to_last_followup> (No mapping)
+    BIND("" AS ?col_17_days_to_last_followup)
+
+    # 18: <http://syn.org/gdc/diagnosis/last_known_disease_status> (No mapping)
+    BIND("" AS ?col_18_last_known_disease_status)
+
+    # 19: <http://syn.org/gdc/diagnosis/days_to_last_known_status> (No mapping)
+    BIND("" AS ?col_19_days_to_last_known_status)
+
+    # 20: <http://syn.org/gdc/diagnosis/tissue_or_organ_of_origin> (No mapping)
+    BIND("" AS ?col_20_tissue_or_organ_of_origin)
+
+    # 21: <http://syn.org/gdc/diagnosis/site_of_resection_or_biopsy> (No mapping)
+    BIND("" AS ?col_21_site_of_resection_or_biopsy)
+
+    # 22: <http://syn.org/gdc/diagnosis/days_to_last_known_disease_status> (No mapping)
+    BIND("" AS ?col_22_days_to_last_known_disease_status)
+}

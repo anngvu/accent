@@ -1,0 +1,56 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX gdc_sample: <http://syn.org/gdc/sample/>
+PREFIX gdc_part: <http://syn.org/gdc/participant/>
+PREFIX ccdi_sample: <http://syn.org/ccdi/sample/>
+
+SELECT
+    ?col_0_type
+    ?col_1_study_participant_id
+    ?col_2_sample_id
+    ?col_3_sample_type
+    ?col_4_sample_description
+    ?col_5_sample_type_category
+    ?col_6_sample_tumor_status
+    ?col_7_sample_anatomic_site
+    ?col_8_sample_age_at_collection
+    ?col_9_derived_from_specimen
+    ?col_10_biosample_accession
+WHERE {
+    ?ccdi_subject rdf:type <http://syn.org/ccdi/sample>
+
+    # 0: <http://syn.org/gdc/sample/type>
+    BIND("sample" AS ?col_0_type)
+
+    # 1: <http://syn.org/gdc/participant/study_participant_id> (No mapping from shared-elements)
+    BIND("" AS ?col_1_study_participant_id)
+
+    # 2: <http://syn.org/gdc/sample/sample_id> (No mapping from shared-elements)
+    BIND("" AS ?col_2_sample_id)
+
+    # 3: <http://syn.org/gdc/sample/sample_type> (No mapping from shared-elements)
+    BIND("" AS ?col_3_sample_type)
+
+    # 4: <http://syn.org/gdc/sample/sample_description> (No mapping from shared-elements for this specific GDC field)
+    BIND("" AS ?col_4_sample_description)
+
+    # 5: <http://syn.org/gdc/sample/sample_type_category> (No mapping from shared-elements)
+    BIND("" AS ?col_5_sample_type_category)
+
+    # 6: <http://syn.org/gdc/sample/sample_tumor_status> maps to ccdi_sample:sample_tumor_status
+    # Choosing ccdi_sample:sample_tumor_status over ccdi_sample:sample_description for direct semantic alignment.
+    OPTIONAL { ?ccdi_subject ccdi_sample:sample_tumor_status ?_sample_tumor_status . }
+    BIND(COALESCE(STR(?_sample_tumor_status), "") AS ?col_6_sample_tumor_status)
+
+    # 7: <http://syn.org/gdc/sample/sample_anatomic_site> (No mapping from shared-elements)
+    BIND("" AS ?col_7_sample_anatomic_site)
+
+    # 8: <http://syn.org/gdc/sample/sample_age_at_collection> maps to ccdi_sample:participant_age_at_collection
+    OPTIONAL { ?ccdi_subject ccdi_sample:participant_age_at_collection ?_sample_age_at_collection . }
+    BIND(COALESCE(STR(?_sample_age_at_collection), "") AS ?col_8_sample_age_at_collection)
+
+    # 9: <http://syn.org/gdc/sample/derived_from_specimen> (No mapping from shared-elements)
+    BIND("" AS ?col_9_derived_from_specimen)
+
+    # 10: <http://syn.org/gdc/sample/biosample_accession> (No mapping from shared-elements)
+    BIND("" AS ?col_10_biosample_accession)
+}

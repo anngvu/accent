@@ -1,0 +1,93 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT
+    # 0: <http://syn.org/gdc/file/type>
+    ?col_0_type
+    # 1: <http://syn.org/gdc/study/phs_accession>
+    ?col_1_phs_accession
+    # 2: <http://syn.org/gdc/participant/study_participant_id>
+    ?col_2_study_participant_id
+    # 3: <http://syn.org/gdc/sample/sample_id>
+    ?col_3_sample_id
+    # 4: <http://syn.org/gdc/file/file_name>
+    ?col_4_file_name
+    # 5: <http://syn.org/gdc/file/file_type>
+    ?col_5_file_type
+    # 6: <http://syn.org/gdc/file/file_description>
+    ?col_6_file_description
+    # 7: <http://syn.org/gdc/file/file_size>
+    ?col_7_file_size
+    # 8: <http://syn.org/gdc/file/md5sum>
+    ?col_8_md5sum
+    # 9: <http://syn.org/gdc/file/experimental_strategy_and_data_subtypes>
+    ?col_9_experimental_strategy_and_data_subtypes
+    # 10: <http://syn.org/gdc/file/submission_version>
+    ?col_10_submission_version
+    # 11: <http://syn.org/gdc/file/checksum_value>
+    ?col_11_checksum_value
+    # 12: <http://syn.org/gdc/file/checksum_algorithm>
+    ?col_12_checksum_algorithm
+    # 13: <http://syn.org/gdc/file/file_mapping_level>
+    ?col_13_file_mapping_level
+    # 14: <http://syn.org/gdc/file/release_datetime>
+    ?col_14_release_datetime
+    # 15: <http://syn.org/gdc/file/is_supplementary_file>
+    ?col_15_is_supplementary_file
+WHERE {
+    # Assume ?ccdi_subject represents the CCDI entities that are of rdf:type "file".
+    ?ccdi_subject rdf:type <http://syn.org/ccdi/sequencing_file> .
+
+    # 0: <http://syn.org/gdc/file/type>
+    BIND("file" AS ?col_0_type)
+
+    # 1: <http://syn.org/gdc/study/phs_accession> (No mapping)
+    BIND("" AS ?col_1_phs_accession)
+
+    # 2: <http://syn.org/gdc/participant/study_participant_id> (No mapping)
+    BIND("" AS ?col_2_study_participant_id)
+
+    # 3: <http://syn.org/gdc/sample/sample_id> (No mapping)
+    BIND("" AS ?col_3_sample_id)
+
+    # 4: <http://syn.org/gdc/file/file_name> maps to <http://syn.org/ccdi/sequencing_file/file_name>
+    OPTIONAL { ?ccdi_subject <http://syn.org/ccdi/sequencing_file/file_name> ?_file_name . }
+    BIND(COALESCE(STR(?_file_name), "") AS ?col_4_file_name)
+
+    # 5: <http://syn.org/gdc/file/file_type> maps to <http://syn.org/ccdi/sequencing_file/file_type>
+    OPTIONAL { ?ccdi_subject <http://syn.org/ccdi/sequencing_file/file_type> ?_file_type . }
+    BIND(COALESCE(STR(?_file_type), "") AS ?col_5_file_type)
+
+    # 6: <http://syn.org/gdc/file/file_description> maps to <http://syn.org/ccdi/sequencing_file/file_description>
+    OPTIONAL { ?ccdi_subject <http://syn.org/ccdi/sequencing_file/file_description> ?_file_description . }
+    BIND(COALESCE(STR(?_file_description), "") AS ?col_6_file_description)
+
+    # 7: <http://syn.org/gdc/file/file_size> maps to <http://syn.org/ccdi/sequencing_file/file_size>
+    OPTIONAL { ?ccdi_subject <http://syn.org/ccdi/sequencing_file/file_size> ?_file_size . }
+    BIND(COALESCE(STR(?_file_size), "") AS ?col_7_file_size)
+
+    # 8: <http://syn.org/gdc/file/md5sum> maps to <http://syn.org/ccdi/sequencing_file/md5sum>
+    OPTIONAL { ?ccdi_subject <http://syn.org/ccdi/sequencing_file/md5sum> ?_md5sum . }
+    BIND(COALESCE(STR(?_md5sum), "") AS ?col_8_md5sum)
+
+    # 9: <http://syn.org/gdc/file/experimental_strategy_and_data_subtypes> (No mapping)
+    BIND("" AS ?col_9_experimental_strategy_and_data_subtypes)
+
+    # 10: <http://syn.org/gdc/file/submission_version> (No mapping)
+    BIND("" AS ?col_10_submission_version)
+
+    # 11: <http://syn.org/gdc/file/checksum_value> (Derived from sequencing_file md5sum if available)
+    BIND(IF(BOUND(?_md5sum), STR(?_md5sum), "") AS ?col_11_checksum_value)
+
+    # 12: <http://syn.org/gdc/file/checksum_algorithm> (Derived from sequencing_file md5sum, set to "MD5" if md5sum is available)
+    BIND(IF(BOUND(?_md5sum), "MD5", "") AS ?col_12_checksum_algorithm)
+
+    # 13: <http://syn.org/gdc/file/file_mapping_level> maps to <http://syn.org/ccdi/sequencing_file/file_mapping_level>
+    OPTIONAL { ?ccdi_subject <http://syn.org/ccdi/sequencing_file/file_mapping_level> ?_file_mapping_level . }
+    BIND(COALESCE(STR(?_file_mapping_level), "") AS ?col_13_file_mapping_level)
+
+    # 14: <http://syn.org/gdc/file/release_datetime> (No mapping)
+    BIND("" AS ?col_14_release_datetime)
+
+    # 15: <http://syn.org/gdc/file/is_supplementary_file> (No mapping)
+    BIND("" AS ?col_15_is_supplementary_file)
+}

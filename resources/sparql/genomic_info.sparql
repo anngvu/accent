@@ -1,0 +1,109 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX gdc_gi: <http://syn.org/gdc/genomic_info/>
+PREFIX gdc_file: <http://syn.org/gdc/file/>
+PREFIX ccdi_seqfile: <http://syn.org/ccdi/sequencing_file/>
+
+SELECT
+    ?col_0_type
+    ?col_1_file_id
+    ?col_2_genomic_info_id
+    ?col_3_library_id
+    ?col_4_bases
+    ?col_5_number_of_reads
+    ?col_6_avg_read_length
+    ?col_7_coverage
+    ?col_8_reference_genome_assembly
+    ?col_9_custom_assembly_fasta_file_for_alignment
+    ?col_10_design_description
+    ?col_11_library_strategy
+    ?col_12_library_layout
+    ?col_13_library_selection
+    ?col_14_platform
+    ?col_15_instrument_model
+    ?col_16_sequence_alignment_software
+    ?col_17_reporter_label
+    ?col_18_methylation_platform
+    ?col_19_library_source_material
+    ?col_20_library_source_molecule
+WHERE {
+
+    ?ccdi_subject rdf:type <http://syn.org/ccdi/sequencing_file>
+
+    # 0: <http://syn.org/gdc/genomic_info/type>
+    BIND("genomic_info" AS ?col_0_type)
+
+    # 1: <http://syn.org/gdc/file/file_id> (No mapping from shared-elements for genomic_info -> sequencing_file)
+    BIND("" AS ?col_1_file_id)
+
+    # 2: <http://syn.org/gdc/genomic_info/genomic_info_id> (No mapping from shared-elements)
+    BIND("" AS ?col_2_genomic_info_id)
+
+    # 3: <http://syn.org/gdc/genomic_info/library_id> maps to ccdi_seqfile:library_id
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:library_id ?_library_id . }
+    BIND(COALESCE(STR(?_library_id), "") AS ?col_3_library_id)
+
+    # 4: <http://syn.org/gdc/genomic_info/bases> (No mapping from shared-elements)
+    BIND("" AS ?col_4_bases)
+
+    # 5: <http://syn.org/gdc/genomic_info/number_of_reads> maps to ccdi_seqfile:number_of_reads
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:number_of_reads ?_number_of_reads . }
+    BIND(COALESCE(STR(?_number_of_reads), "") AS ?col_5_number_of_reads)
+
+    # 6: <http://syn.org/gdc/genomic_info/avg_read_length> maps to ccdi_seqfile:avg_read_length
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:avg_read_length ?_avg_read_length . }
+    BIND(COALESCE(STR(?_avg_read_length), "") AS ?col_6_avg_read_length)
+
+    # 7: <http://syn.org/gdc/genomic_info/coverage> maps to ccdi_seqfile:coverage
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:coverage ?_coverage . }
+    BIND(COALESCE(STR(?_coverage), "") AS ?col_7_coverage)
+
+    # 8: <http://syn.org/gdc/genomic_info/reference_genome_assembly> maps to ccdi_seqfile:reference_genome_assembly
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:reference_genome_assembly ?_ref_genome . }
+    BIND(COALESCE(STR(?_ref_genome), "") AS ?col_8_reference_genome_assembly)
+
+    # 9: <http://syn.org/gdc/genomic_info/custom_assembly_fasta_file_for_alignment> maps to ccdi_seqfile:custom_assembly_fasta_file_for_alignment
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:custom_assembly_fasta_file_for_alignment ?_custom_assembly . }
+    BIND(COALESCE(STR(?_custom_assembly), "") AS ?col_9_custom_assembly_fasta_file_for_alignment)
+
+    # 10: <http://syn.org/gdc/genomic_info/design_description> maps to ccdi_seqfile:design_description
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:design_description ?_design_desc . }
+    BIND(COALESCE(STR(?_design_desc), "") AS ?col_10_design_description)
+
+    # 11: <http://syn.org/gdc/genomic_info/library_strategy> maps to ccdi_seqfile:library_strategy
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:library_strategy ?_lib_strat . }
+    BIND(COALESCE(STR(?_lib_strat), "") AS ?col_11_library_strategy)
+
+    # 12: <http://syn.org/gdc/genomic_info/library_layout> maps to ccdi_seqfile:library_layout
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:library_layout ?_lib_layout . }
+    BIND(COALESCE(STR(?_lib_layout), "") AS ?col_12_library_layout)
+
+    # 13: <http://syn.org/gdc/genomic_info/library_selection> maps to ccdi_seqfile:library_selection
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:library_selection ?_lib_select . }
+    BIND(COALESCE(STR(?_lib_select), "") AS ?col_13_library_selection)
+
+    # 14: <http://syn.org/gdc/genomic_info/platform> maps to ccdi_seqfile:platform
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:platform ?_platform . }
+    BIND(COALESCE(STR(?_platform), "") AS ?col_14_platform)
+
+    # 15: <http://syn.org/gdc/genomic_info/instrument_model> maps to ccdi_seqfile:instrument_model
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:instrument_model ?_instr_model . }
+    BIND(COALESCE(STR(?_instr_model), "") AS ?col_15_instrument_model)
+
+    # 16: <http://syn.org/gdc/genomic_info/sequence_alignment_software> maps to ccdi_seqfile:sequence_alignment_software
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:sequence_alignment_software ?_seq_align_sw . }
+    BIND(COALESCE(STR(?_seq_align_sw), "") AS ?col_16_sequence_alignment_software)
+
+    # 17: <http://syn.org/gdc/genomic_info/reporter_label> (No mapping from shared-elements)
+    BIND("" AS ?col_17_reporter_label)
+
+    # 18: <http://syn.org/gdc/genomic_info/methylation_platform> (No mapping from shared-elements)
+    BIND("" AS ?col_18_methylation_platform)
+
+    # 19: <http://syn.org/gdc/genomic_info/library_source_material> maps to ccdi_seqfile:library_source_material
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:library_source_material ?_lib_src_material . }
+    BIND(COALESCE(STR(?_lib_src_material), "") AS ?col_19_library_source_material)
+
+    # 20: <http://syn.org/gdc/genomic_info/library_source_molecule> maps to ccdi_seqfile:library_source_molecule
+    OPTIONAL { ?ccdi_subject ccdi_seqfile:library_source_molecule ?_lib_src_molecule . }
+    BIND(COALESCE(STR(?_lib_src_molecule), "") AS ?col_20_library_source_molecule)
+}
