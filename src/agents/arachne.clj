@@ -8,6 +8,13 @@
             [com.brunobonacci.mulog :as mu]))
 
 ;;;;;;;;;;;;;;;;;;;;;
+;; INTERNAL
+;;;;;;;;;;;;;;;;;;;;;
+
+(mu/start-publisher! {:type :simple-file
+                      :filename "/tmp/mulog/events.edn"})
+
+;;;;;;;;;;;;;;;;;;;;;
 ;; Tool defs
 ;;;;;;;;;;;;;;;;;;;;;
 
@@ -94,22 +101,21 @@
              :description "Local file path such as 'input/sample.csv' and 'examples/code.js', or URL such as 'https://raw.githubusercontent.com/codeforamerica/ohana-api/refs/heads/master/data/sample-csv/organizations.csv'"}}}
     :required ["file"]}})
 
-(def write_file_spec
+(def submit_transform_spec
   {:type "function"
    :function
-   {:name "write_file"
-    :description "Write text content (data or code) to a file."
+   {:name "submit_transform"
+    :description "Submit JSON defining the mapping/transform to be implemented, conforming to a JSON schema previously referenced."
     :parameters
     {:type "object"
      :properties
-     {:content
+     {:data
       {:type "string"
-       :description "Content to be written to the file."}
+       :description "Data to be written to the file."}
       :filename
       {:type "string"
-       :description "Name for the file to be written, including the extension."}}}
-    :required ["content" "filename"] }})
-
+       :description "Name for the spec file, including the file extension."}}}
+    :required ["data" "filename"] }})
 
 (def tools
   [find_matching_attribute_spec
@@ -118,7 +124,7 @@
    list_standard_templates_spec
    read_file_spec
    read_file_head_spec
-   write_file_spec
+   submit_transform_spec
    ])
 
 (def anthropic-tools (chat/convert-tools-for-anthropic tools true))
@@ -130,6 +136,7 @@
 (defn wrap-find-matching-attribute
   [{:keys [attribute_uri]}]
   (let [result (arachne/get-same-property attribute_uri)]
+    (mu/log ::find-matching-attribute :param attribute_uri) 
     (if (empty? result)
       {:result "No known matches were found."
        :type :success}
@@ -139,6 +146,7 @@
 (defn wrap-get-attribute-meta 
   [{:keys [attribute_uri]}]
   (let [result (arachne/describe-uri attribute_uri)]
+    (mu/log ::get-attribute-meta  :param attribute_uri)
     {:result (str result)
      :type :success}))
 
@@ -149,8 +157,9 @@
      :type :success}))
 
 (defn wrap-list-standard-templates
-  [{:keys [standard_uri]}]
+  [{:keys [standard_uri]}] 
   (let [result (arachne/list-templates standard_uri)]
+    (mu/log ::list-standard-templates  :param standard_uri)
     {:result (str result)
      :type :success}))
 
@@ -158,26 +167,30 @@
   [{:keys [file]}]
   (let [file-obj (java.io.File. file)
          size-in-kb (/ (.length file-obj) 1024.0)]
+    (mu/log ::read-file  :filename file)
      (if (< size-in-kb 100)
        {:result (slurp file)
         :type :success}
        {:result "File is too large."
         :type :error})))
 
-(defn wrap-write-file 
-  [{:keys [content filename]}]
-  (let [result (spit filename content)]
+(defn wrap-submit-transform 
+  [{:keys [data filename]}]
+  (let [file (spit filename data)]
+    (mu/log ::submit-transform :filename filename :message data)
     {:result "File written successfully."
      :type :success}))
 
 (defn wrap-read-file-head
   [{:keys [file]}] 
-  (with-open [rdr (clojure.java.io/reader file)]
-      (->>
-       (line-seq rdr)
-       (take 5)
-       (doall)
-       (str/join "\n"))))
+  (let [text (with-open [rdr (clojure.java.io/reader file)] 
+               (->> 
+                (line-seq rdr) 
+                (take 5) 
+                (doall) 
+                (str/join "\n")))]
+    {:result text
+     :type :success}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Custom tool time
@@ -203,7 +216,7 @@
                      "list_standard_templates"         (wrap-list-standard-templates args)
                      "read_file"                       (wrap-read-file args)
                      "read_file_head"                  (wrap-read-file-head args)
-                     "write_file"                      (wrap-write-file args)
+                     "submit_transform"                (wrap-submit-transform args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (->
          (if (map? result) (merge  {:tool call-fn} result) {:tool call-fn :result result})
@@ -235,9 +248,9 @@
   "Given the input, you can query for information about matching target attributes and target templates to better understand specifications for the transformation. " 
   "For example, given a CSV file called 'sample.csv' that may contain column 'sample_attribute_1', you can see whether 'sample_attribute_1' matches an attribute in the GDC standard, which GDC template it's used in, and acceptable values for the GDC version of the attribute. "
   "You may retrieve the list of potential target templates in the GDC standard. Note that the inputs may not have a 1:1 match to the GDC templates, so not all GDC templates are output targets, only the relevant ones. "
-  "Once you have determined which GDC templates to output and how to translate the data sufficiently, use the 'write_file' tool. " 
-  "You can adapt parts of the workflow as needed according to user needs and to get the best results, but in general seeing all csv file data first may be most optimal. "
-   ))
+  "Once you have determined which GDC templates to output and how to translate the data sufficiently, use the mapping/transform specification schema (below) and submit a specification that can reconstitute all columns defined in the target template.\n"
+  (slurp "resources/map_spec.json")
+ ))
 
 (def openai-messages (atom [{:role "system" :content role}]))
 
@@ -246,14 +259,14 @@
 (def meta (atom {:system role}))
 
 (def OpenAIArachneAgent 
-  (chat/->OpenAIProvider "o3-mini" 
+  (chat/->OpenAIProvider "gpt-4o";; "gpt-4o" 
                    openai-messages
                    tools 
                    tool-time
                    meta))
 
 (def AnthropicArachneAgent 
-  (chat/->AnthropicProvider "claude-3-7-sonnet-latest" 
+  (chat/->AnthropicProvider "claude-3-5-sonnet-20241022" ;;"claude-3-7-sonnet-latest" 
                       anthropic-messages
                       anthropic-tools 
                       anthropic-tool-time
