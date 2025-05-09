@@ -1,21 +1,46 @@
 (ns database.arachne
   (:gen-class)
   (:require [arachne.aristotle :as aa]
+            [arachne.aristotle.inference :as inf]
             [arachne.aristotle.registry :as reg]
             [arachne.aristotle.query :as q]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.data.csv :as csv]
             [cheshire.core :as json]
-            [csv2rdf.csvw :as csvw])
+            [csv2rdf.csvw :as csvw]
+            [database.arachne :as arachne])
   (:import [java.io File]
            [java.nio.file Files Path Paths]
            [java.nio.file.attribute FileAttribute]))
 
 (def kg (atom nil))
 
+(defn mapped-prop-rule
+  "NOTE: Don't use owl:samePropertyAs as this does have some implications we don't want"
+  []
+  (reg/with {'g "http://syn.org/"}
+    (inf/rule
+     :name "Same CDE ID implies :mapping relation"
+     :body '[[?p1 :g/isCDE ?id]
+             [?p2 :g/isCDE ?id]
+             (not= ?p1 ?p2)]
+    :head '[[?p1 :g/mapping ?p2]]
+    :dir :forward)
+    (inf/rule
+     :name ":mapping is a symmetric property"
+     :body '[[?p1 :g/mapping ?p2]]
+     :head '[[?p2 :g/mapping ?p1]]
+     :dir :forward)))
+
 ;; Initialize the graph
-(defn init-graph [] (with-out-str (reset! kg (aa/graph :jena-mini))))
+(defn init-graph
+  []
+  (let [;rules [inf/table-all]
+        rules (conj [inf/table-all] (mapped-prop-rule))
+        ]
+    (with-out-str
+      (reset! kg (aa/graph :jena-rules rules))))
 
 (init-graph)
 
@@ -57,6 +82,12 @@
 ;; Check
 (println "Arachne knowledge graph created with" (count-triples @kg) "triples")
 
+(defn get-prop-mapping
+  [p]
+  (reg/with {'g "http://syn.org/"}
+    (q/run @kg '[?s]
+    `[:bgp [?s :g/mapping ~p]])))
+
 (defn get-labels
   []
   (q/run @kg '[?s ?o]
@@ -87,8 +118,8 @@
               [?match :rdfs/label ?match_label]] 
             `{?label ~label})))
 
-(defn get-template-columns
-  "Get template columns (DOES NOT RETURN IT IN ORDER)"
+(defn get-template-columns-via-node
+  "Get template columns (DOES NOT return order info)"
   [template]
   (reg/with {'g "http://syn.org/"}
     (q/run @kg '[?attr ?label]
@@ -102,17 +133,29 @@
   [template]
   (let [result
         (reg/with {'g "http://syn.org/"}
-              (q/run @kg '[?position ?column ?label]
+              (q/run @kg '[?position ?column]
                 `[:bgp
                   [?s :rdf/type :g/ColumnPosition]
                   [?s :g/template ~template]
                   [?s :g/column ?column]
                   [?s :g/position ?position]
-                  [?column :rdfs/label ?label]
+                  ;;[?column :rdfs/label ?label]
                 ]
                 ))]
     (sort-by first result)
     ))
+
+(defn shared-elements
+  "Shared elements in template-1 vs template-2"
+  [template-1 template-2]
+  (reg/with {'g "http://syn.org/"}
+    (q/run @kg '[?attr-1 ?attr-2]
+      `[:bgp
+        [?attr-1 :g/node ~template-1]
+        [?attr-2 :g/node ~template-2]
+        [?attr-1 :g/isCDE ?id]
+        [?attr-2 :g/isCDE ?id]
+        ])))
 
 (defn get-col-position
   "Get position for an attribute within a specific template"
