@@ -36,11 +36,11 @@
 ;; Initialize the graph
 (defn init-graph
   []
-  (let [;rules [inf/table-all]
-        rules (conj [inf/table-all] (mapped-prop-rule))
+  (let [rules [inf/table-all]
+        ;rules (conj [inf/table-all] (mapped-prop-rule))
         ]
     (with-out-str
-      (reset! kg (aa/graph :jena-rules rules))))
+      (reset! kg (aa/graph :jena-rules rules)))))
 
 (init-graph)
 
@@ -133,11 +133,12 @@
   [template]
   (let [result
         (reg/with {'g "http://syn.org/"}
-              (q/run @kg '[?position ?column]
+              (q/run @kg '[?position ?column ?header]
                 `[:bgp
                   [?s :rdf/type :g/ColumnPosition]
                   [?s :g/template ~template]
                   [?s :g/column ?column]
+                  [?s :g/header ?header]
                   [?s :g/position ?position]
                   ;;[?column :rdfs/label ?label]
                 ]
@@ -296,3 +297,4 @@
 (defn run-sparql-query [sparql]
   (let [op (q/parse sparql)]
     (q/run @kg op)))
+
