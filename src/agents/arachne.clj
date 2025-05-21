@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :as chat]
+            [curate.util :as cu]
             [database.arachne :as arachne]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -23,8 +24,7 @@
    :function
    {:name "find_matching_attribute"
     :description (str "Given a source attribute, find a matching attribute in a target attribute set. "
-                      "This will return the matching attribute if it exists. "
-                      ;;"If matching attribute found, information like attribute description, etc. is also returned."
+                      "This will return the matching attribute if it exists."
                       )
     :parameters
     {:type "object"
@@ -80,32 +80,32 @@
   {:type "function"
    :function
    {:name "read_file"
-    :description "Read text content accessible as a local file or via a URL. Files like Excel are *not* supported. Files larger than 100kb will not be read."
+    :description "Read text content accessible as a local file or via a URL. Files like Excel are *not* supported. Files larger than 50kb will not be read."
     :parameters
     {:type "object"
      :properties
      {:file {:type "string" 
-             :description "Local file path such as 'input/sample.csv' and 'examples/code.js', or URL such as 'https://raw.githubusercontent.com/codeforamerica/ohana-api/refs/heads/master/data/sample-csv/organizations.csv'"}
+             :description "Local file path such as 'input/sample.csv' and 'examples/code.js', or URL such as 'https://raw.githubusercontent.com/.../data/sample-csv/organizations.csv'"}
       }}
     :required ["file"]}})
 
-(def read_file_head_spec
+(def summarize_file_spec
   {:type "function"
    :function
-   {:name "read_file_head"
-    :description "Read only the first 5 lines of text content of a local file or file at a URL. This can handle larger files."
+   {:name "summarize_file"
+    :description "Get summary of the data within the file, such as columns present, unique values and value ranges. This can handle larger files."
     :parameters
     {:type "object"
      :properties
      {:file {:type "string"
-             :description "Local file path such as 'input/sample.csv' and 'examples/code.js', or URL such as 'https://raw.githubusercontent.com/codeforamerica/ohana-api/refs/heads/master/data/sample-csv/organizations.csv'"}}}
+             :description "Local file path such as 'input/sample.csv'."}}}
     :required ["file"]}})
 
-(def submit_transform_spec
+(def submit_data_spec
   {:type "function"
    :function
-   {:name "submit_transform"
-    :description "Submit JSON defining the mapping/transform to be implemented, conforming to a JSON schema previously referenced."
+   {:name "submit_data"
+    :description "CSV data or JSON defining the mapping/transform to be implemented (if so, conforms to a JSON schema)."
     :parameters
     {:type "object"
      :properties
@@ -114,7 +114,7 @@
        :description "Data to be written to the file."}
       :filename
       {:type "string"
-       :description "Name for the spec file, including the file extension."}}}
+       :description "File name, including the file extension."}}}
     :required ["data" "filename"] }})
 
 (def tools
@@ -123,8 +123,8 @@
    get_template_meta_spec
    list_standard_templates_spec
    read_file_spec
-   read_file_head_spec
-   submit_transform_spec
+   summarize_file_spec
+   submit_data_spec
    ])
 
 (def anthropic-tools (chat/convert-tools-for-anthropic tools true))
@@ -137,7 +137,7 @@
   [{:keys [attribute_uri]}]
   (let [result (arachne/get-same-property attribute_uri)]
     (mu/log ::find-matching-attribute :param attribute_uri) 
-    (if (empty? result)
+    (if (or (nil? result) (empty? result))
       {:result "No known matches were found."
        :type :success}
       {:result (str result)
@@ -147,49 +147,54 @@
   [{:keys [attribute_uri]}]
   (let [result (arachne/describe-uri attribute_uri)]
     (mu/log ::get-attribute-meta  :param attribute_uri)
-    {:result (str result)
-     :type :success}))
+    (if (or (nil? result) (empty? result))
+      {:result "No result."
+       :type :success}
+      {:result (str result) 
+       :type :success})))
 
 (defn wrap-get-template-meta
   [{:keys [template_uri]}]
   (let [result (arachne/describe-template-columns template_uri)]
-    {:result (str result)
-     :type :success}))
+    (if (or (nil? result) (empty? result))
+        {:result "No result."
+         :type :success}
+        {:result (str result)
+         :type :success})))
 
 (defn wrap-list-standard-templates
   [{:keys [standard_uri]}] 
   (let [result (arachne/list-templates standard_uri)]
     (mu/log ::list-standard-templates  :param standard_uri)
-    {:result (str result)
-     :type :success}))
+    (if (or (nil? result) (empty? result))
+        {:result "No result."
+         :type :success}
+        {:result (str result)
+         :type :success})))
 
 (defn wrap-read-file 
   [{:keys [file]}]
   (let [file-obj (java.io.File. file)
          size-in-kb (/ (.length file-obj) 1024.0)]
     (mu/log ::read-file  :filename file)
-     (if (< size-in-kb 100)
+     (if (< size-in-kb 10)
        {:result (slurp file)
         :type :success}
        {:result "File is too large."
         :type :error})))
 
-(defn wrap-submit-transform 
+(defn wrap-submit-data 
   [{:keys [data filename]}]
   (let [file (spit filename data)]
-    (mu/log ::submit-transform :filename filename :message data)
-    {:result "File written successfully."
+    (mu/log ::submit-data :filename filename :message data)
+    {:result "File stored."
      :type :success}))
 
-(defn wrap-read-file-head
+(defn wrap-summarize-file
   [{:keys [file]}] 
-  (let [text (with-open [rdr (clojure.java.io/reader file)] 
-               (->> 
-                (line-seq rdr) 
-                (take 5) 
-                (doall) 
-                (str/join "\n")))]
-    {:result text
+  (let [result (cu/summarize-manifest file)]
+    (mu/log ::summarize-file  :filename file)
+    {:result (str result)
      :type :success}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -197,12 +202,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn with-next-tool-call
-  "Applies logic for chaining certain tool calls. Input should be result from `tool-time`
-  Currently, stage_curated should be forced after curate_dataset only under certain return types."
+  "Applies logic for chaining certain tool calls. NOTE: Stub, not used."
   [tool-result]
-  (if (and (= "curate_dataset" (tool-result :tool)) (= :success (tool-result :type)))
-    (assoc tool-result :next-tool-call "stage_curated")
-    tool-result))
+  tool-result)
 
 (defn tool-time 
   [tool-call]
@@ -215,8 +217,8 @@
                      "get_template_meta"               (wrap-get-template-meta args)
                      "list_standard_templates"         (wrap-list-standard-templates args)
                      "read_file"                       (wrap-read-file args)
-                     "read_file_head"                  (wrap-read-file-head args)
-                     "submit_transform"                (wrap-submit-transform args)
+                     "summarize_file"                  (wrap-summarize-file args)
+                     "submit_data"                (wrap-submit-data args)
                      (throw (ex-info "Invalid tool function" {:tool call-fn})))]
         (->
          (if (map? result) (merge  {:tool call-fn} result) {:tool call-fn :result result})
@@ -248,7 +250,7 @@
   "Given the input, you can query for information about matching target attributes and target templates to better understand specifications for the transformation. " 
   "For example, given a CSV file called 'sample.csv' that may contain column 'sample_attribute_1', you can see whether 'sample_attribute_1' matches an attribute in the GDC standard, which GDC template it's used in, and acceptable values for the GDC version of the attribute. "
   "You may retrieve the list of potential target templates in the GDC standard. Note that the inputs may not have a 1:1 match to the GDC templates, so not all GDC templates are output targets, only the relevant ones. "
-  "Once you have determined which GDC templates to output and how to translate the data sufficiently, use the mapping/transform specification schema (below) and submit a specification that can reconstitute all columns defined in the target template.\n"
+  "Once you have determined which GDC templates to output and how to translate the data sufficiently, either submit the csv data directly or use the mapping/transform specification schema (below), whichever is better. The output must contain/specify all columns in the target template!\n"
   (slurp "resources/map_spec.json")
  ))
 
@@ -265,12 +267,12 @@
                    tool-time
                    meta))
 
-(def AnthropicArachneAgent 
-  (chat/->AnthropicProvider "claude-3-5-sonnet-20241022" ;;"claude-3-7-sonnet-latest" 
-                      anthropic-messages
-                      anthropic-tools 
-                      anthropic-tool-time
-                      meta))
+(def AnthropicArachneAgent
+  (chat/->AnthropicProvider "claude-3-5-sonnet-20241022" ;;"claude-3-7-sonnet-latest"  
+                            anthropic-messages
+                            anthropic-tools
+                            anthropic-tool-time
+                            meta))
 
 (defn -main [] 
   (setup)
