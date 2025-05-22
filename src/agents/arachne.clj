@@ -93,7 +93,7 @@
   {:type "function"
    :function
    {:name "summarize_file"
-    :description "Get summary of the data within the file, such as columns present, unique values and value ranges. This can handle larger files."
+    :description "Get summary of the data within a csv file, such as columns present, unique values and value ranges. This can handle larger files."
     :parameters
     {:type "object"
      :properties
@@ -261,7 +261,7 @@
 (def meta (atom {:system role}))
 
 (def OpenAIArachneAgent 
-  (chat/->OpenAIProvider "gpt-4o";; "gpt-4o" 
+  (chat/->OpenAIProvider "gpt-4o"
                    openai-messages
                    tools 
                    tool-time
