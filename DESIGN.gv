@@ -2,42 +2,52 @@ digraph G {
  
   rankdir=BT;
   
-  subgraph cluster_dm_rag {
+  subgraph cluster_db {
       
-    db[label="database.dlvn"];
+    db_dlvn[label="database.dlvn"];
     db_up[label="database.upstream"];
-    db -> db_up
+    db_dlvn -> db_up
+    db_arachne[label="database.arachne"]
     
       
   }
   
-  subgraph cluster_ui {
+ 
+  subgraph cluster_resources {
       
-    vegalite[label="accent.viz.vegalite"]
-     web[label="accent.ui.web"]
-     vegalite -> web
-    
-  }
-  
-  subgraph cluster_curate {
-      
-    curate_dataset[label="curate.dataset"];
-    curate_tool[label="curate.tool"];    
+    tools[label="accent.tools"]  
+    tools_synapse[label="tools.synapse"];
+    tools_local_db[label="tools.local_databases"];
+    tools -> tools_synapse
+    tools -> tools_local_db
+    tools_local_db -> db_dlvn
+    tools_local_db -> db_arachne
       
   }
   
   subgraph cluster_accent {
     
-    state[label="accent.state"]    
-    state -> db
-    state -> curate_dataset
+    state[label="accent.state"]
        
-     chat -> state
-     chat[label="accent.chat"]
-     chat -> curate_dataset
-     chat -> db
-     chat -> vegalite
-     
+    registry[label="accent.registry"]
+    tools -> registry
+    agent -> tools   
+    agent -> state
+    agent[label="accent.agent"]
+   
+    
+  }
+  
+  subgraph cluster_server {
+      
+      server_mcp[label="server.mcp"]
+      server_mcp -> registry
+  }
+  
+  subgraph cluster_agents {
+      Syndi -> agent
+      Arachne -> agent
+      Extraction -> agent
   }
 
 }
