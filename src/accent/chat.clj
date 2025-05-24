@@ -1,6 +1,7 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
+            [accent.registry :refer [tools->openai-format tools->anthropic-format create-tool-dispatcher create-anthropic-tool-dispatcher]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -25,9 +26,9 @@
   (get-model [this] "Get current model")
   (switch-model [this model] "Switch to given model"))
 
-;;;;;;;;;;;;;;;;;;;;;;
+;;=========================================
 ;; Utils
-;;;;;;;;;;;;;;;;;;;;;;
+;;=========================================
 
 ;; (defn compress [data]
 ;;   (let [baos (java.io.ByteArrayOutputStream.)]
@@ -73,7 +74,7 @@
                       :connect-timeout (or (:connect-timeout m) 10000)
                       :timeout (or (:timeout m) 25000)}))
     (catch Exception e 
-      {:error   true
+      {:isError   true
        :message (str (.getMessage e))})))
 
 (defn request-anthropic-messages
@@ -87,7 +88,7 @@
                   :connect-timeout (or (:connect-timeout m) 10000)
                   :timeout (or (:timeout m) 25000)})
     (catch Exception e
-      {:error   true
+      {:isError   true
        :message (str (.getMessage e))})))
 
 (def oops
@@ -120,9 +121,9 @@
    (str "Hey, it looks like " (rand-nth oops)
         ". Context tokens limit has been reached with " (:total-tokens last-response) " tokens.")))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;=========================================
 ;; Helper Fns for Streaming
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;=========================================
 
 (defn reduce-tool-call-stream
   "Reducer for streamed tool call given thus-accumulated and latest delta."
@@ -155,15 +156,15 @@
      (json/generate-string)
      (hash-map :body))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;=========================================
 ;; OpenAIProvider Definition
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;=========================================
 
 (deftype OpenAIProvider [^:volatile-mutable model 
                          messages 
                          tools 
                          tool-time 
-                         metaphora]
+                         context]
   AIProviderOps
   (parse-response [this resp] (parse-response this resp nil))
   (parse-response [this resp clients]
@@ -198,8 +199,8 @@
                        tools (merge tools)
                        tool-choice (assoc :tool_choice {:type "function" :function {:name tool-choice}}))
                       (request-openai-completions))]
-        (if (:error response)
-          {:error true
+        (if (:isError response)
+          {:isError true
            :message (:message response)}
           response))))
   (add-tool-result [this tool-calls] (add-tool-result this tool-calls nil))
@@ -257,28 +258,28 @@
   (get-last-text [this] "TODO")
   (save-messages [this] (save-state! @messages (str "accent-openai-messages-" (System/currentTimeMillis) ".json")))
   (save-messages [this file] (save-state! @messages file))
-  (reset-messages [this] (reset! messages [{:role "system" :content (@metaphora :system)}]))
+  (reset-messages [this] (reset! messages [{:role "system" :content (@context :system)}]))
   
   AgentOps
   (get-model [this] model)
   (switch-model [this new-model] (set! model new-model)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;=====================================================
 ;; Anthropic Provider Def
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;=====================================================
 
 (deftype AnthropicProvider [^:volatile-mutable model 
                             messages 
                             tools 
                             tool-time 
-                            metaphora]
+                            context]
   
   AIProviderOps
   (parse-response [this resp] (parse-response this resp nil))
   (parse-response [this resp clients]
-    (if (:error resp)
+    (if (:isError resp)
       (do
-        (println "Error occurred:" (resp :message))
+        (mu/log ::error :data response)
         {:role    "system"
          :content (str "An error occurred: " (resp :message))})
       (let [resp       (json/parse-string (:body resp) true)
@@ -304,14 +305,14 @@
                          :messages    @messages
                          :temperature 0
                          :stream      false} 
-                        (@metaphora :system) (assoc :system (@metaphora :system))
+                        (@context :system) (assoc :system (@context :system))
                         tools (assoc :tools tools)
                         tool-choice (assoc :tool_choice {:type "tool" :name tool-choice}))
                        (request-anthropic-messages))]
-        (if (:error response)
+        (if (:isError response)
           (do 
             (mu/log ::error :data response)
-            {:error   true
+            {:isError   true
              :message (get response :message)}
           )
           response))))
@@ -337,60 +338,9 @@
   (switch-model [this new-model] (set! model new-model)))
 
 
-;;;;;;;;;;;;;;;;;;;;;
-;; Tools
-;;;;;;;;;;;;;;;;;;;;;
-
-(defn tool-time
-  "Stub function"
-  [tool-call]
-  (let [call-fn (get-in tool-call [:function :name])
-        args    (json/parse-string (get-in tool-call [:function :arguments]) true)] 
-       {:tool   call-fn
-        :result "Tools are not implemented in vanilla chat."
-        :error  false}))
-
-(defn anthropic-tool-time
-  "Stub function"
-  [tool-use]
-  (let [tool-call {:id       (:id tool-use)
-                   :type     "function"
-                   :function {:name      (:name tool-use)
-                              :arguments (json/generate-string (:input tool-use))}}]
-    (tool-time tool-call)))
-
-(defn convert-tools-for-anthropic
-  "Convert OpenAI tools schema to Anthropic tools schema"
-  [openai-tools & [cache-breakpoint?]]
-  (let [tools-count (count openai-tools)]
-    (mapv (fn [tool idx]
-        (cond->
-          {:name (get-in tool [:function :name])
-           :description (get-in tool [:function :description])
-           :input_schema (-> tool
-                             (get-in [:function :parameters]))}
-          (and cache-breakpoint? (= idx (dec tools-count))) (assoc :cache_control {"type" "ephemeral"})))
-        openai-tools (range tools-count))))
-
-(def search_tool_spec
-  "Example of a tool spec for a search tool; not used."
-  {:type "function"
-   :function
-   {:name "search"
-    :description "Search the web"
-    :parameters
-    {:type "object"
-     :properties
-     {:query
-      {:type "string"
-       :description "Search query"}}}
-    :required []}})
-
-(def tools [search_tool_spec])
-
-;;;;;;;;;;;;;;;;;;;;;
+;;==========================================
 ;; Models
-;;;;;;;;;;;;;;;;;;;;;
+;;==========================================
 
 (def openai-models
   "https://platform.openai.com/docs/models"
@@ -412,49 +362,45 @@
             "claude-3-sonnet-20240229" {:label "Claude 3 Sonnet"
                                         :context 200000}}})
 
-;;;;;;;;;;;;;;;;;;;;;
-;; Vanilla chat
-;;;;;;;;;;;;;;;;;;;;;
+;; =============================================================================
+;; Agent Configuration w/ Tools
+;; =============================================================================
 
-(defn ask [provider prompt]
+(defn create-agent
+  "Create an agent, possibly endowed with tools, using config and optional add'l context"
+  [agent-config & {:keys [context] :or {context (atom {})}}]
+  (let [provider (:provider agent-config)
+        model (:model agent-config)
+        role (:role agent-config)]
+    (case provider
+      :openai (OpenAIProvider. model
+                               (atom [{:role "system" :content role}])
+                               (tools->openai-format tool-set) 
+                               (create-tool-dispatcher tool-set)
+                               context)
+      :anthropic (AnthropicProvider. model
+                                     (atom [])
+                                     (tools->anthropic-format tool-set)
+                                     (create-anthropic-tool-dispatcher tool-set) 
+                                     (swap! context assoc :system role))
+      )))
+
+
+;; =============================================================================
+;; Basic Chat Access to Agent
+;; =============================================================================
+
+(defn ask [agent prompt]
   (->> prompt
-       (prompt-ai provider)
-       (parse-response provider)))
+       (prompt-ai agent)
+       (parse-response agent)))
 
-(def openai-init-prompt [{:role "system" :content "You are a helpful assistant."}])
-
-(def openai-messages (atom openai-init-prompt))
-
-(def anthropic-messages (atom [])) ;; system prompt is not in messages
-
-(def metaphora (atom {}))
-
-(def OpenAIVanillaChat 
-  (OpenAIProvider. "gpt-4o" 
-                   openai-messages
-                   nil 
-                   tool-time
-                   metaphora))
-
-(def AnthropicVanillaChat
-  (AnthropicProvider. "claude-3-7-sonnet-latest" 
-                      anthropic-messages 
-                      nil
-                      anthropic-tool-time
-                      metaphora))
-
-(defn chat [provider-agent]
-  (println "Chat initialized. Your message:") 
-  (loop [prompt (read-line)] 
-    (let [ai-reply (ask provider-agent prompt)] 
-      (println "assistant:" (ai-reply :content)) 
-      (when-not (:final ai-reply) 
-        (print "user: ") 
-        (flush) 
+(defn chat [agent]
+  (println "Chat initialized. Your message:")
+  (loop [prompt (read-line)]
+    (let [ai-reply (ask agent prompt)]
+      (println "assistant:" (ai-reply :content))
+      (when-not (:final ai-reply)
+        (print "user: ")
+        (flush)
         (recur (read-line))))))
-
-(defn -main [] 
-  (setup) 
-  (chat (if (= (@u :model-provider) "OpenAI") 
-    OpenAIVanillaChat 
-    AnthropicVanillaChat)))
