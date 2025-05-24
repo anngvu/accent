@@ -8,10 +8,6 @@
             [clojure.string :as str]
             [com.brunobonacci.mulog :as mu]))
 
-;;;;;;;;;;;;;;;;;;;;;
-;; INTERNAL
-;;;;;;;;;;;;;;;;;;;;;
-
 (mu/start-publisher! {:type :simple-file
                       :filename "/tmp/mulog/events.edn"})
 
