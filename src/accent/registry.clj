@@ -28,7 +28,8 @@
   [:map {:description "JSON Schema for tool output"}])
 
 (def handler-schema
-  [:fn {:description "Function that handles tool execution"}])
+  [:fn {:description "Function that handles tool execution"}
+   ifn?])
 
 (def category-schema
   [:set {:description "Tool tags for organization"}
@@ -387,23 +388,34 @@
   "Macro to define and register a tool in one step.
    Handler can be either:
    - A function symbol/var: (deftool :my-tool \"...\" {...} my-existing-function)
-   - Function body forms: (deftool :my-tool \"...\" {...} (do-something args))"
-  [tool-name description parameters & {:keys [category permissions dependencies handler]
-                                       :or {category :general permissions #{} dependencies []}}
-   & handler-body]
-  (let [handler-fn (cond
+   - Function body forms: (deftool :my-tool \"...\" {...} (do-something args))
+   - Explicit :handler key: (deftool :my-tool \"...\" {...} :handler my-function)"
+  [tool-name description parameters & args]
+  (let [;; Parse keyword arguments and handler body
+        {opts true handler-body false} (group-by keyword? args)
+        opts-map (apply hash-map opts)
+        category (get opts-map :category #{})
+        permissions (get opts-map :permissions #{})
+        dependencies (get opts-map :dependencies [])
+        explicit-handler (get opts-map :handler)
+
+        handler-fn (cond
                      ;; If :handler key is provided, use it directly
-                     handler handler
-                     
+                     explicit-handler explicit-handler
+
                      ;; If handler-body is a single symbol, treat it as function reference
                      (and (= 1 (count handler-body))
                           (symbol? (first handler-body)))
                      (first handler-body)
-                     
+
                      ;; Otherwise, wrap the body in a function
+                     (seq handler-body)
+                     `(fn [~'args] ~@handler-body)
+
+                     ;; No handler provided
                      :else
-                     `(fn [~'args] ~@handler-body))]
-    `(register-tool! 
+                     (throw (IllegalArgumentException. "No handler provided for tool")))]
+    `(register-tool!
       {:tool-name ~tool-name
        :description ~description
        :parameters ~parameters
@@ -416,23 +428,35 @@
   "Macro to define and register a tool specifically for MCP SDK format.
    Handler can be either:
    - A function symbol/var: (defmcptool :my-tool \"...\" {...} my-existing-function)
-   - Function body forms: (defmcptool :my-tool \"...\" {...} (do-something args))"
-  [tool-name description input-schema & {:keys [category permissions dependencies output-schema handler]
-                                         :or {category :general permissions #{} dependencies []}}
-   & handler-body]
-  (let [handler-fn (cond
+   - Function body forms: (defmcptool :my-tool \"...\" {...} (do-something args))
+   - Explicit :handler key: (defmcptool :my-tool \"...\" {...} :handler my-function)"
+  [tool-name description input-schema & args]
+  (let [;; Parse keyword arguments and handler body
+        {opts true handler-body false} (group-by keyword? args)
+        opts-map (apply hash-map opts)
+        category (get opts-map :category :general)
+        permissions (get opts-map :permissions #{})
+        dependencies (get opts-map :dependencies [])
+        output-schema (get opts-map :output-schema)
+        explicit-handler (get opts-map :handler)
+
+        handler-fn (cond
                      ;; If :handler key is provided, use it directly
-                     handler handler
-                     
+                     explicit-handler explicit-handler
+
                      ;; If handler-body is a single symbol, treat it as function reference
                      (and (= 1 (count handler-body))
                           (symbol? (first handler-body)))
                      (first handler-body)
-                     
+
                      ;; Otherwise, wrap the body in a function
+                     (seq handler-body)
+                     `(fn [~'args] ~@handler-body)
+
+                     ;; No handler provided
                      :else
-                     `(fn [~'args] ~@handler-body))]
-    `(register-tool! 
+                     (throw (IllegalArgumentException. "No handler provided for tool")))]
+    `(register-tool!
       {:tool-name ~tool-name
        :description ~description
        :parameters ~input-schema
@@ -446,23 +470,35 @@
   "Macro to define and register a prompt in one step.
    Handler can be either:
    - A function symbol/var: (defprompt :my-prompt \"...\" my-existing-function)
-   - Function body forms: (defprompt :my-prompt \"...\" (generate-response args))"
-  [prompt-name description & {:keys [arguments category permissions dependencies handler]
-                              :or {arguments [] category :general permissions #{} dependencies []}}
-   & handler-body]
-  (let [handler-fn (cond
+   - Function body forms: (defprompt :my-prompt \"...\" (generate-response args))
+   - Explicit :handler key: (defprompt :my-prompt \"...\" :handler my-function)"
+  [prompt-name description & args]
+  (let [;; Parse keyword arguments and handler body
+        {opts true handler-body false} (group-by keyword? args)
+        opts-map (apply hash-map opts)
+        arguments (get opts-map :arguments [])
+        category (get opts-map :category :general)
+        permissions (get opts-map :permissions #{})
+        dependencies (get opts-map :dependencies [])
+        explicit-handler (get opts-map :handler)
+
+        handler-fn (cond
                      ;; If :handler key is provided, use it directly
-                     handler handler
-                     
+                     explicit-handler explicit-handler
+
                      ;; If handler-body is a single symbol, treat it as function reference
                      (and (= 1 (count handler-body))
                           (symbol? (first handler-body)))
                      (first handler-body)
-                     
+
                      ;; Otherwise, wrap the body in a function
+                     (seq handler-body)
+                     `(fn [~'args] ~@handler-body)
+
+                     ;; No handler provided
                      :else
-                     `(fn [~'args] ~@handler-body))]
-    `(register-prompt! 
+                     (throw (IllegalArgumentException. "No handler provided for prompt")))]
+    `(register-prompt!
       {:prompt-name ~prompt-name
        :description ~description
        :arguments ~arguments
@@ -578,7 +614,7 @@
     {:type "object"
      :properties {"name" {:type "string"}}
      :required ["name"]}
-    :category :social
+    :category #{:social}
     :permissions #{:read}
     
     {:message (str "Hello, " (:name args) "!")})
@@ -602,4 +638,5 @@
   
   ;; List everything
   (list-all-items)
+)
 
