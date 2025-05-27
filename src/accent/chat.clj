@@ -1,7 +1,7 @@
 (ns accent.chat
   (:gen-class)
   (:require [accent.state :refer [setup u]]
-            [accent.registry :refer [tools->openai-format tools->anthropic-format create-tool-dispatcher create-anthropic-tool-dispatcher]]
+            [accent.registry :refer [select-tools create-tool-dispatcher create-anthropic-tool-dispatcher]]
             [babashka.http-client :as client]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -168,7 +168,7 @@
   AIProviderOps
   (parse-response [this resp] (parse-response this resp nil))
   (parse-response [this resp clients]
-    (if (:error resp)
+    (if (:isError resp)
       (do
         (println "Error occurred:" (:message resp))
         {:role    "system"
@@ -279,7 +279,7 @@
   (parse-response [this resp clients]
     (if (:isError resp)
       (do
-        (mu/log ::error :data response)
+        (mu/log ::error :data resp)
         {:role    "system"
          :content (str "An error occurred: " (resp :message))})
       (let [resp       (json/parse-string (:body resp) true)
@@ -371,20 +371,19 @@
   [agent-config & {:keys [context] :or {context (atom {})}}]
   (let [provider (:provider agent-config)
         model (:model agent-config)
-        role (:role agent-config)]
+        role (:role agent-config)
+        tool-set (:tools agent-config)]
     (case provider
       :openai (OpenAIProvider. model
                                (atom [{:role "system" :content role}])
-                               (tools->openai-format tool-set) 
+                               (select-tools tool-set :openai)
                                (create-tool-dispatcher tool-set)
                                context)
       :anthropic (AnthropicProvider. model
                                      (atom [])
-                                     (tools->anthropic-format tool-set)
-                                     (create-anthropic-tool-dispatcher tool-set) 
-                                     (swap! context assoc :system role))
-      )))
-
+                                     (select-tools tool-set :anthropic)
+                                     (create-anthropic-tool-dispatcher tool-set)
+                                     (swap! context assoc :system role)))))
 
 ;; =============================================================================
 ;; Basic Chat Access to Agent

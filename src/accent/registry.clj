@@ -305,17 +305,17 @@
    :handler (:handler prompt-spec)})
 
 (defn tools->openai-format
-  "Convert a set of tools to OpenAI format"
+  "Convert a set of tools in internal registry format to OpenAI format"
   [tools]
   (map tool->openai-spec (vals tools)))
 
 (defn tools->anthropic-format
-  "Convert a set of tools to Anthropic format"
+  "Convert a set of tools in internal registry format to Anthropic format"
   [tools]
   (map tool->anthropic-spec (vals tools)))
 
 (defn tools->mcp-format
-  "Convert a set of tools to MCP SDK format"
+  "Convert set of tools in internal registry format to MCP SDK format"
   [tools]
   (map tool->mcp-spec (vals tools)))
 
@@ -324,8 +324,8 @@
   [prompts]
   (map prompt->mcp-spec (vals prompts)))
 
-(defn tools->openai->anthropic
-  "Convert OpenAI tools format to Anthropic tools format"
+(defn tools->openai->anthropic-format
+  "Convert OpenAI tools format directly to Anthropic tools format"
   [openai-tools & [cache-breakpoint?]]
   (let [tools-count (count openai-tools)]
     (mapv (fn [tool idx]
@@ -336,6 +336,14 @@
                                 (get-in [:function :parameters]))}
               (and cache-breakpoint? (= idx (dec tools-count))) (assoc :cache_control {"type" "ephemeral"})))
           openai-tools (range tools-count))))
+
+(defn select-tools
+  "Select tools from registry by key, in the desired format"
+  [tool-keys provider]
+  (let [tools (select-keys @tool-registry tool-keys)]
+       (case provider
+         :anthropic (tools->anthropic-format tools)
+         :openai (tools->openai-format tools))))
 
 ;; =============================================================================
 ;; Universal Dispatchers
