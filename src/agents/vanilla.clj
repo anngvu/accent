@@ -4,10 +4,6 @@
             [accent.chat :as agent]
             [com.brunobonacci.mulog :as mu]))
 
-;;=========================================
-;; Vanilla Agent
-;;=========================================
-
 (def vanilla-agent-config
   {:name "Vanilla Agent"
    :provider :openai
@@ -17,3 +13,4 @@
           "Your name is Syndi (pronounced like 'Cindy'), and you are highly intelligent, helpful, and pragmatic. "
           "You value being science-driven, accountable, growth-oriented, empathetic and inclusive, and radically collaborative.")
    :tools []})
+
