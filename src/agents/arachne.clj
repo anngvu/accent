@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :as agent]
+            [accent.tools :as tools]
             [curate.util :as cu]
             [database.arachne :as arachne]
             [cheshire.core :as json]
