@@ -32,8 +32,7 @@
    :required ["table_id"]}
   :category #{:data-access :synapse}
   :permissions #{:read}
-
-  get-table-context-handler)
+  :handler get-table-context-handler)
 
 ;; ----------------------------------------------------------------------------
 
@@ -55,9 +54,8 @@
      :description "A valid SQL query."}}
    :required ["table_id" "query"]}
   :category #{:data-access :synapse}
-  :permissions #{:read} 
-
-  query-table-handler)
+  :permissions #{:read}
+  :handler query-table-handler)
 
 ;; ----------------------------------------------------------------------------
 
@@ -77,8 +75,7 @@
    :required ["id"]}
   :category #{:documentation :synapse}
   :permissions #{:read}
-
-  get-entity-wiki-handler)
+  :handler get-wiki-handler)
 
 ;; ----------------------------------------------------------------------------
 
@@ -116,8 +113,7 @@
    :required ["data"]}
   :category #{:data-management :synapse}
   :permissions #{:write}
-
-  commit-handler)
+  :handler commit-handler)
 
 ;; ----------------------------------------------------------------------------
 
@@ -136,8 +132,7 @@
      :description "Ids are integers, e.g. 273960."}}}
   :category #{:user-management :synapse}
   :permissions #{:read}
-
-  get-user-name-handler)
+  :handler get-user-name-handler)
 
 ;; =============================================================================
 ;; Define and Register Arachne Tools
@@ -152,11 +147,7 @@
    :required ["attribute_uri"]}
   :category #{:data-mapping}
   :permissions #{:read}
-  
-  (let [result (arachne/get-same-property (:attribute_uri args))]
-    (if (or (nil? result) (empty? result))
-      {:result "No known matches were found." :type "text"}
-      {:result (str result) :type "text"})))
+  :handler identity)
 
 ;; ----------------------------------------------------------------------------
 
@@ -169,11 +160,7 @@
    :required ["template_uri"]}
   :category #{:data-mapping}
   :permissions #{:read}
-  
-  (let [result (arachne/describe-template-columns (:template_uri args))]
-    (if (or (nil? result) (empty? result))
-      {:result "No result." :type "text"}
-      {:result (str result) :type "text"})))
+  :handler identity)
 
 ;; ----------------------------------------------------------------------------
 
@@ -186,12 +173,7 @@
    :required ["file"]}
   :category #{:file-io}
   :permissions #{:read}
-  
-  (let [file-obj (java.io.File. (:file args))
-        size-in-kb (/ (.length file-obj) 1024.0)]
-    (if (< size-in-kb 10)
-      {:result (slurp (:file args)) :type "text"}
-      {:result "File is too large." :type "text"})))
+  :handler identity)
 
 ;; ----------------------------------------------------------------------------
 
@@ -204,7 +186,4 @@
    :required ["data" "filename"]}
   :category #{:file-io}
   :permissions #{:write}
-  
-  ;; (spit (:filename args) (:data args))
-  {:result "File stored." :type "text"})
-
+  :handler identity)

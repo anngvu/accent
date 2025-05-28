@@ -32,16 +32,14 @@
    ifn?])
 
 (def category-schema
-  [:set {:description "Tool tags for organization"}
-   :keyword])
+  [:set {:description "Tool tags for organization"} :keyword])
 
 (def permissions-schema
   [:set {:description "Required permissions"}
    [:enum :read :write :admin]])
 
 (def dependencies-schema
-  [:vector {:description "Other tools this depends on"}
-   :keyword])
+  [:vector {:description "Other tools this depends on"} :keyword])
 
 (def tool-spec-schema
   [:map {:description "Complete tool specification"}
@@ -394,81 +392,18 @@
 
 (defmacro deftool
   "Macro to define and register a tool in one step.
-   Handler can be either:
-   - A function symbol/var: (deftool :my-tool \"...\" {...} my-existing-function)
-   - Function body forms: (deftool :my-tool \"...\" {...} (do-something args))
-   - Explicit :handler key: (deftool :my-tool \"...\" {...} :handler my-function)"
-  [tool-name description parameters & args]
-  (let [;; Parse keyword arguments and handler body
-        {opts true handler-body false} (group-by keyword? args)
-        opts-map (apply hash-map opts)
-        category (get opts-map :category #{})
-        permissions (get opts-map :permissions #{})
-        dependencies (get opts-map :dependencies [])
-        explicit-handler (get opts-map :handler)
-
-        handler-fn (cond
-                     ;; If :handler key is provided, use it directly
-                     explicit-handler explicit-handler
-
-                     ;; If handler-body is a single symbol, treat it as function reference
-                     (and (= 1 (count handler-body))
-                          (symbol? (first handler-body)))
-                     (first handler-body)
-
-                     ;; Otherwise, wrap the body in a function
-                     (seq handler-body)
-                     `(fn [~'args] ~@handler-body)
-
-                     ;; No handler provided
-                     :else
-                     (throw (IllegalArgumentException. "No handler provided for tool")))]
+   TODO: Handler can be either
+   - Function body forms: (deftool :my-tool \"...\" {...} :handler (fn [args] (something-with-args)))
+   - Function symbol: (deftool :my-tool \"...\" {...} :handler my-function-symbol)"
+  [tool-name description parameters & {:keys [category permissions handler] :as opts}]
+  (let [category (get opts :category #{})
+        permissions (get opts :permissions #{})
+        dependencies (get opts :dependencies [])
+        handler-fn (get opts :handler)]
     `(register-tool!
       {:tool-name ~tool-name
        :description ~description
        :parameters ~parameters
-       :category ~category
-       :permissions ~permissions
-       :dependencies ~dependencies
-       :handler ~handler-fn})))
-
-(defmacro defmcptool
-  "Macro to define and register a tool specifically for MCP SDK format.
-   Handler can be either:
-   - A function symbol/var: (defmcptool :my-tool \"...\" {...} my-existing-function)
-   - Function body forms: (defmcptool :my-tool \"...\" {...} (do-something args))
-   - Explicit :handler key: (defmcptool :my-tool \"...\" {...} :handler my-function)"
-  [tool-name description input-schema & args]
-  (let [;; Parse keyword arguments and handler body
-        {opts true handler-body false} (group-by keyword? args)
-        opts-map (apply hash-map opts)
-        category (get opts-map :category :general)
-        permissions (get opts-map :permissions #{})
-        dependencies (get opts-map :dependencies [])
-        output-schema (get opts-map :output-schema)
-        explicit-handler (get opts-map :handler)
-
-        handler-fn (cond
-                     ;; If :handler key is provided, use it directly
-                     explicit-handler explicit-handler
-
-                     ;; If handler-body is a single symbol, treat it as function reference
-                     (and (= 1 (count handler-body))
-                          (symbol? (first handler-body)))
-                     (first handler-body)
-
-                     ;; Otherwise, wrap the body in a function
-                     (seq handler-body)
-                     `(fn [~'args] ~@handler-body)
-
-                     ;; No handler provided
-                     :else
-                     (throw (IllegalArgumentException. "No handler provided for tool")))]
-    `(register-tool!
-      {:tool-name ~tool-name
-       :description ~description
-       :parameters ~input-schema
-       :output-schema ~output-schema
        :category ~category
        :permissions ~permissions
        :dependencies ~dependencies
