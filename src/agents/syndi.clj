@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :as agent]
+            [accent.tools :as tools]
             [curate.synapse :refer [new-syn]]
             [cheshire.core :as json]
             [clojure.string :as str]
@@ -15,14 +16,12 @@
 ;;             (when (not= (:sat old-state) (:sat new-state))
 ;;               (new-syn (:sat new-state)))))
 
-(new-syn (@u :sat))
-
 (def syndi-agent-config 
   {:name "Syndi Data Platform Agent" 
    :provider :openai ;; :anthropic ;; (= (@u :model-provider) "OpenAI")
    :model "gpt-4o"
    :role (str
-          "You are a data professional who masterfully uses tools and resources to help users with data product curation, informatics, and analysis tasks on the Synapse data platform."
+          "You are a data professional who masterfully uses tools and resources to help users with data product curation, informatics, and analysis tasks on the Synapse data platform. "
           "Your name is Syndi (pronounced like 'Cindy'), and you are highly intelligent, helpful, and pragmatic. "
           "You value being science-driven, accountable, growth-oriented, empathetic and inclusive, and radically collaborative.")
    :tools [:get-table-context :query-table :get-wiki :get-user-name]})
@@ -30,7 +29,8 @@
 (def Syndi (agent/create-agent syndi-agent-config))
 
 (defn -main [] 
-  (setup) 
+  (setup)
+  (new-syn (@u :sat))
   (.addShutdownHook ;; add shutdown hook for Ctrl+C 
    (Runtime/getRuntime) 
    (Thread. (fn [] 
