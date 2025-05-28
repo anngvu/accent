@@ -9,6 +9,9 @@
             [clojure.string :as str]
             [com.brunobonacci.mulog :as mu]))
 
+(setup)
+(new-syn (@u :sat))
+
 (mu/start-publisher! {:type :simple-file
                       :filename "/tmp/mulog/events.edn"})
 
@@ -19,7 +22,7 @@
 
 (def syndi-agent-config 
   {:name "Syndi Data Platform Agent" 
-   :provider :openai ;; :anthropic ;; (= (@u :model-provider) "OpenAI")
+   :provider :openai ;; (@u :model-provider)
    :model "gpt-4o"
    :role (str
           "You are a data professional who masterfully uses tools and resources to help users with data product curation, informatics, and analysis tasks on the Synapse data platform. "
@@ -30,8 +33,6 @@
 (def Syndi (agent/create-agent syndi-agent-config))
 
 (defn -main [] 
-  (setup)
-  (new-syn (@u :sat))
   (.addShutdownHook ;; add shutdown hook for Ctrl+C 
    (Runtime/getRuntime) 
    (Thread. (fn [] 
@@ -42,4 +43,4 @@
                           :msg "Error during shutdown" 
                           :exception e)))
                  (mu/log ::shutdown :msg "Goodbye!")))) 
-    (agent/chat Syndi))
+  (agent/chat Syndi))
