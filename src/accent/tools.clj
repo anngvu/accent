@@ -138,31 +138,120 @@
 ;; Define and Register Arachne Tools
 ;; =============================================================================
 
+(defn find-matching-attribute-handler
+  [{:keys [attribute_uri]}]
+  (let [result (arachne/get-same-property attribute_uri)]
+    ;; (mu/log ::find-matching-attribute :param attribute_uri)
+    (if (or (nil? result) (empty? result))
+      {:result "No known matches were found."
+       :type "text"}
+      {:result (str result)
+       :type "text"})))
+
 (registry/deftool 
   :find-matching-attribute
   "Given a source attribute, find a matching attribute in a target attribute set."
   {:type "object"
-   :properties {"attribute_uri" {:type "string"
-                                :description "The source attribute URI"}}
+   :properties 
+   {"attribute_uri" 
+    {:type "string" 
+     :description "The source attribute URI"}}
    :required ["attribute_uri"]}
   :category #{:data-mapping}
   :permissions #{:read}
-  :handler identity)
+  :handler find-matching-attribute-handler)
 
 ;; ----------------------------------------------------------------------------
+
+(defn get-attribute-meta-handler
+  [{:keys [attribute_uri]}]
+  (let [result (arachne/describe-uri attribute_uri)]
+    ;; (mu/log ::get-attribute-meta  :param attribute_uri)
+    (if (or (nil? result) (empty? result))
+      {:result "No result."
+       :type "text"}
+      {:result (str result)
+       :type "text"})))
+
+(registry/deftool
+  :get-attribute-meta
+  "Get attribute info using its URI."
+  {:type "object"
+   :properties 
+   {"attribute_uri" 
+    {:type "string" 
+     :description "The attribute URI, generally of the format '<http://syn.org/{data_standard}/{template}>', e.g. '<http://syn.org/gdc/sample>'."}}
+   :required ["attribute_uri"]}
+  :category #{:data-mapping}
+  :permissions #{:read}
+  :handler get-attribute-meta-handler)
+
+;; ----------------------------------------------------------------------------
+
+(defn get-template-meta-handler
+  [{:keys [template_uri]}]
+  (let [result (arachne/describe-template-columns template_uri)]
+    (if (or (nil? result) (empty? result))
+      {:result "No result."
+       :type "text"}
+      {:result (str result)
+       :type "text"})))
 
 (registry/deftool
   :get-template-meta
   "Get information about an entity template such as its attributes and order."
   {:type "object"
-   :properties {"template_uri" {:type "string"
-                               :description "The template URI"}}
+   :properties 
+   {"template_uri" 
+    {:type "string" 
+     :description "The template URI"}}
    :required ["template_uri"]}
   :category #{:data-mapping}
   :permissions #{:read}
-  :handler identity)
+  :handler get-template-meta-handler)
 
 ;; ----------------------------------------------------------------------------
+
+(defn list-standard-templates-handler
+  [{:keys [standard_uri]}]
+  (let [result (arachne/list-templates standard_uri)]
+    ;; (mu/log ::list-standard-templates  :param standard_uri)
+    (if (or (nil? result) (empty? result))
+      {:result "No result."
+       :type "text"}
+      {:result (str result)
+       :type "text"})))
+
+(registry/deftool
+  :list-standard-templates
+  "List the templates defined by a data standard. Returns template URIs, which can be used with 'get_template_meta' to get more info about a specific template."
+  {:type "object" 
+   :properties 
+   {"standard_uri" 
+    {:type "string" 
+     :enum ["<http://syn.org/gdc>"] 
+     :description "The data standard URI, of the format '<http://syn.org/{data_standard}>', i.e. '<http://syn.org/gdc>'. Currently, only GDC standard is supported."}}
+   :required ["standard_uri"]}
+  :category #{:data-mapping}
+  :permissions #{:read}
+  :handler list-standard-templates-handler)
+
+;; =============================================================================
+;; Define and Register I/O Tools
+;; =============================================================================
+
+(defn read-file-handler
+  [{:keys [file]}]
+  (let [file-obj (java.io.File. file)
+        size-in-kb (/ (.length file-obj) 1024.0)]
+    ;; (mu/log ::read-file  :filename file)
+    (if (< size-in-kb 10)
+      {:result (slurp file)
+       :type "text"
+       :isError false}
+      {:result "File is too large."
+       :type "text"
+       :isError true})))
 
 (registry/deftool
   :read-file
@@ -171,11 +260,19 @@
    :properties {"file" {:type "string"
                        :description "Local file path or URL"}}
    :required ["file"]}
-  :category #{:file-io}
+  :category #{:io}
   :permissions #{:read}
-  :handler identity)
+  :handler read-file-handler)
 
 ;; ----------------------------------------------------------------------------
+
+(defn submit-data-handler
+  "Defaults to storing data to a file."
+  [{:keys [data filename]}]
+  (let [file (spit filename data)]
+    ;; (mu/log ::submit-data :filename filename :message data)
+    {:result "Data stored."
+     :type "text"}))
 
 (registry/deftool
   :submit-data
@@ -184,6 +281,6 @@
    :properties {"data" {:type "string" :description "Data to write"}
                "filename" {:type "string" :description "Output filename"}}
    :required ["data" "filename"]}
-  :category #{:file-io}
+  :category #{:io}
   :permissions #{:write}
-  :handler identity)
+  :handler submit-data-handler)
