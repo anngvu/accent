@@ -2,6 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :as agent]
+            [accent.registry :as registry]
             [accent.tools :as tools]
             [curate.synapse :refer [new-syn]]
             [cheshire.core :as json]
@@ -24,7 +25,7 @@
           "You are a data professional who masterfully uses tools and resources to help users with data product curation, informatics, and analysis tasks on the Synapse data platform. "
           "Your name is Syndi (pronounced like 'Cindy'), and you are highly intelligent, helpful, and pragmatic. "
           "You value being science-driven, accountable, growth-oriented, empathetic and inclusive, and radically collaborative.")
-   :tools [:get-table-context :query-table :get-wiki :get-user-name]})
+   :tools #{:get-table-context :query-table :get-wiki :get-user-name}})
 
 (def Syndi (agent/create-agent syndi-agent-config))
 
@@ -35,7 +36,7 @@
    (Runtime/getRuntime) 
    (Thread. (fn [] 
               (try
-                ;; (agent/save-messages Syndi) ;; save based on config 
+                (agent/save-messages Syndi) ;; save based on config
                 (catch Exception e 
                   (mu/log ::shutdown-error 
                           :msg "Error during shutdown" 

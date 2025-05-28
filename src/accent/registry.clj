@@ -227,9 +227,10 @@
 ;; =============================================================================
 
 (defn execute-tool
-  "Execute a tool with given arguments"
+  "Execute a tool with given arguments.
+  NOTE: tool-name expected to be keyword, and converted if given as name."
   [tool-name args]
-  (if-let [tool (get-tool tool-name)]
+  (if-let [tool (get-tool (if (keyword? tool-name) tool-name (keyword tool-name)))]
     (try
       ((:handler tool) args)
       (catch Exception e
