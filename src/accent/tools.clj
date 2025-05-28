@@ -150,12 +150,12 @@
 
 (registry/deftool 
   :find-matching-attribute
-  "Given a source attribute, find a matching attribute in a target attribute set."
+  "Given a source attribute, find the matching/synonymous attribute(s) in a target attribute set."
   {:type "object"
    :properties 
    {"attribute_uri" 
     {:type "string" 
-     :description "The source attribute URI"}}
+     :description "The source attribute URI, generally of the format '<http://syn.org/{data_standard}/{template}/{attribute}>'."}}
    :required ["attribute_uri"]}
   :category #{:data-mapping}
   :permissions #{:read}
@@ -237,7 +237,7 @@
   :handler list-standard-templates-handler)
 
 ;; =============================================================================
-;; Define and Register I/O Tools
+;; Define and Register File Tools
 ;; =============================================================================
 
 (defn read-file-handler
@@ -263,6 +263,28 @@
   :category #{:io}
   :permissions #{:read}
   :handler read-file-handler)
+
+;; ----------------------------------------------------------------------------
+
+(defn summarize-file-handler
+  [{:keys [file]}]
+  (let [result (cu/summarize-manifest file)]
+    ;; (mu/log ::summarize-file  :filename file)
+    {:result (str result)
+     :type :success}))
+
+(registry/deftool
+  :summarize-file
+  "Get summary of data within a csv file, such as columns present, unique values and value ranges. This can handle larger files."
+  {:type "object"
+   :properties
+   {"file"
+    {:type "string"
+     :description "Local file path or URL"}}
+   :required ["file"]}
+  :category #{:io}
+  :permissions #{:read}
+  :handler summarize-file-handler)
 
 ;; ----------------------------------------------------------------------------
 
