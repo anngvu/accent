@@ -24,7 +24,9 @@
 
 (defprotocol AgentOps
   (get-model [this] "Get current model")
-  (switch-model [this model] "Switch to given model"))
+  (switch-model [this model] "Switch to given model")
+  (show-tools [this] "Show the tools agent currently sees")
+  (get-context [this] "Get context that agent has access to"))
 
 ;;=========================================
 ;; Utils
@@ -262,7 +264,9 @@
   
   AgentOps
   (get-model [this] model)
-  (switch-model [this new-model] (set! model new-model)))
+  (switch-model [this new-model] (set! model new-model))
+  (show-tools [this] tools)
+  (get-context [this] @context))
 
 ;;=====================================================
 ;; Anthropic Provider Def
@@ -335,8 +339,9 @@
   
   AgentOps
   (get-model [this] model)
-  (switch-model [this new-model] (set! model new-model)))
-
+  (switch-model [this new-model] (set! model new-model))
+  (show-tools [this] tools)
+  (get-context [this] @context))
 
 ;;==========================================
 ;; Models
@@ -368,7 +373,7 @@
 
 (defn create-agent
   "Create an agent, possibly endowed with tools, using config and optional add'l context"
-  [agent-config & {:keys [context] :or {context (atom {})}}]
+  [agent-config & {:keys [context]}]
   (let [provider (:provider agent-config)
         model (:model agent-config)
         role (:role agent-config)
@@ -378,12 +383,12 @@
                                (atom [{:role "system" :content role}])
                                (select-tools tool-set :openai)
                                (create-tool-dispatcher tool-set)
-                               context)
+                               (if context context (atom {})))
       :anthropic (AnthropicProvider. model
                                      (atom [])
                                      (select-tools tool-set :anthropic)
                                      (create-anthropic-tool-dispatcher tool-set)
-                                     (swap! context assoc :system role)))))
+                                     (if context context (atom {:system role}))))))
 
 ;; =============================================================================
 ;; Basic Chat Access to Agent
