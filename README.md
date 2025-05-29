@@ -61,11 +61,14 @@ See for a discussion of the differences.
 
 #### Built-in client interface
 
-1. Download a jar release from the [releases page](https://github.com/anngvu/accent/releases). The web app client interface is available in release and later.
-2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
-3. Choose whether you want to run the web app or terminal below.
+It might be helpful to read the [discussion of client differences](https://github.com/anngvu/accent?tab=readme-ov-file#Discussion-of-client-differences) first. 
+But the first few steps are the same as for MCP server mode:
 
-##### For web app
+1. Download a jar release from the [releases page](https://github.com/anngvu/accent/releases) -- download release or later for the web app client interface.
+2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
+3. **Choose whether you want to run the web app or terminal below:**
+
+##### Web app
 
 This is recommended for most users. Run the jar by double-clicking the file. This should open a browser window with your default browser app with Syndi as your assistant.
 
@@ -77,7 +80,7 @@ This is recommended for most users. Run the jar by double-clicking the file. Thi
 - Clone this repo. 
 - Run the desired agent module, e.g. `clj -M -m agents.syndi`.
 
-#### Discussion of differences in clients
+#### Discussion of client differences
 
 1. Guardrails: We are providing new powers to AI; if the AI is more powerful, it can make you more powerful at accomplishing work. 
 However, with great power comes great responsibility. 
@@ -86,9 +89,13 @@ For example, in Claude for Desktop, you will have to approve every AI tool usage
 In *accent*, there are fewer guardrails because our client is primarily developed for rapid prototyping. 
 One safety feature in *accent* web app is that you *are* able to see every single tool call made, though you may not have the chance to intercept it first.
 
-2. Visualization features: Clients like Claude for Desktop can include more flexible and sophisticated visualization, etc; Claude Desktop has at least 5 different charting libraries. 
+2. Features: 
+(a) Clients like Claude for Desktop can include more flexible and sophisticated visualization, etc; Claude Desktop has at least 5 different charting libraries. 
 In *accent*, the web client interface is obviously not as developed, aiming to provide a basic interface only, so only very basic visualization is available via inclusion of one charting library.
 
+(b) *accent* does not render images or audio.
+
+3. Robustness: *accent* client interface still has a number of bugs and rough edges.
 
 #### Configuration
 
