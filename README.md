@@ -7,10 +7,10 @@
 
 #### For people who do scientific data management/curation
 
-Science is built upon data. Research communities have the goal of sharing data packaged and disseminated optimally for reuse. 
+Science is built upon data. Research communities have the goal of sharing data packaged and disseminated optimally for (re)use. 
 If the community is lucky, this is supported by dedicated data curators/managers and contributing scientists are also directly involved. 
 Data curation/management tooling can greatly facilitate the processes of developing and applying a shared data model, creating metadata, finding data, assessing data, and other related processes.  
-And like with other knowledge work, including AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1]. 
+Like with other knowledge work, incorporating AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1]. 
 > Developers can also help with figuring out where AI can be inserted into workflows and how to design technology for doing that. 
 
 This is such an application. Some data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
@@ -31,7 +31,7 @@ Unlike using generative AI in the default web interface, the application infrast
 There are several options to make use of these tools, resources, and prompts:
 
 1. *accent* can be run as an MCP server, in which case you bring your own preferred client that is MCP-compatible. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
-2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To run either of these, see [Running the application](https://github.com/anngvu/accent?tab=readme-ov-file#running-the-application).
+2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#running-the-application).
 
 See for a discussion of the differences.
 
@@ -59,17 +59,17 @@ See for a discussion of the differences.
   }
 ```
 
-### Built-in client interface
+#### Built-in client interface
 
 1. Download a jar release from the [releases page](https://github.com/anngvu/accent/releases). The web app client interface is available in release and later.
 2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
 3. Choose whether you want to run the web app or terminal below.
 
-#### For web app
+##### For web app
 
 This is recommended for most users. Run the jar by double-clicking the file. This should open a browser window with your default browser app with Syndi as your assistant.
 
-#### Terminal
+##### Terminal
 
 **This requires Clojure dev tooling** and is only recommended if you're comfortable with Clojure (or want to be comfortable with Clojure) and want to test experimental features and do some hacking:
 
@@ -77,7 +77,19 @@ This is recommended for most users. Run the jar by double-clicking the file. Thi
 - Clone this repo. 
 - Run the desired agent module, e.g. `clj -M -m agents.syndi`.
 
-    
+#### Discussion of differences in clients
+
+1. Guardrails: We are providing new powers to AI; if the AI is more powerful, it can make you more powerful at accomplishing work. 
+However, with great power comes great responsibility. 
+Whatever guardrails implemented for how AI makes use of tools and resources and behaves in general will depend on your client. 
+For example, in Claude for Desktop, you will have to approve every AI tool usage. 
+In *accent*, there are fewer guardrails because our client is primarily developed for rapid prototyping. 
+One safety feature in *accent* web app is that you *are* able to see every single tool call made, though you may not have the chance to intercept it first.
+
+2. Visualization features: Clients like Claude for Desktop can include more flexible and sophisticated visualization, etc; Claude Desktop has at least 5 different charting libraries. 
+In *accent*, the web client interface is obviously not as developed, aiming to provide a basic interface only, so only very basic visualization is available via inclusion of one charting library.
+
+
 #### Configuration
 
 Settings and (optionally) credentials ares defined in `config.edn`. 
