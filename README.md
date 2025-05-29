@@ -8,12 +8,16 @@
 #### For people who do scientific data management/curation
 
 Science is built upon data. Research communities have the goal of sharing data packaged and disseminated optimally for (re)use. 
-If the community is lucky, this is supported by dedicated data curators/managers and contributing scientists are also directly involved. 
-Data curation/management tooling can greatly facilitate the processes of developing and applying a shared data model, creating metadata, finding data, assessing data, and other related processes.  
-Like with other knowledge work, incorporating AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1]. 
-> Developers can also help with figuring out where AI can be inserted into workflows and how to design technology for doing that. 
 
-This is such an application. Some data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
+If the community is lucky, this is supported by dedicated data curators/managers and contributing scientists are also directly involved. 
+
+If the community is even luckier, good data curation/management tools are available for the processes of developing and applying a common data model, sharing data, finding data, assessing data, etc.
+
+Like with other knowledge work, incorporating AI (just another tool that can use tools) could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1] and maximize ergonomics.
+
+> Developers can also help with figuring out **where AI can be inserted into workflows and how to design technology for doing that**. 
+
+Data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
 1. Data curation -- create, organize, QC, and publish FAIR/harmonized data assets to the best advantage. 
 2. Develop standards and data models. 
 3. Maintain data management plans and SOPs. 
@@ -33,7 +37,7 @@ There are several options to make use of these tools, resources, and prompts:
 1. *accent* can be run as an MCP server, in which case you bring your own preferred client that is MCP-compatible. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
 2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#running-the-application).
 
-See for a discussion of the differences.
+It might be helpful to read the [discussion of client differences](https://github.com/anngvu/accent?tab=readme-ov-file#Discussion-of-client-differences) first. 
 
 #### MCP Server mode
 
@@ -61,8 +65,7 @@ See for a discussion of the differences.
 
 #### Built-in client interface
 
-It might be helpful to read the [discussion of client differences](https://github.com/anngvu/accent?tab=readme-ov-file#Discussion-of-client-differences) first. 
-But the first few steps are the same as for MCP server mode:
+The first few steps are the same as for MCP server mode:
 
 1. Download a jar release from the [releases page](https://github.com/anngvu/accent/releases) -- download release or later for the web app client interface.
 2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
@@ -82,18 +85,19 @@ This is recommended for most users. Run the jar by double-clicking the file. Thi
 
 #### Discussion of client differences
 
-1. Guardrails: We are providing new powers to AI; if the AI is more powerful, it can make you more powerful at accomplishing work. 
+1. Guardrails/safety: We are providing new powers to AI; if the AI is more powerful, it can make you more powerful at accomplishing work. 
 However, with great power comes great responsibility. 
 Whatever guardrails implemented for how AI makes use of tools and resources and behaves in general will depend on your client. 
 For example, in Claude for Desktop, you will have to approve every AI tool usage. 
 In *accent*, there are fewer guardrails because our client is primarily developed for rapid prototyping. 
 One safety feature in *accent* web app is that you *are* able to see every single tool call made, though you may not have the chance to intercept it first.
 
-2. Features: 
-(a) Clients like Claude for Desktop can include more flexible and sophisticated visualization, etc; Claude Desktop has at least 5 different charting libraries. 
+2. Features:
+
+- Visualization: Clients like Claude for Desktop can include more flexible and sophisticated visualization; Claude Desktop has at least 5 different charting libraries. 
 In *accent*, the web client interface is obviously not as developed, aiming to provide a basic interface only, so only very basic visualization is available via inclusion of one charting library.
 
-(b) *accent* does not render images or audio.
+- Content type handling: *accent* does not render images or audio.
 
 3. Robustness: *accent* client interface still has a number of bugs and rough edges.
 
@@ -120,7 +124,7 @@ Tip for usage: Trying to reduce costs by switching to a cheaper model for some t
   - To use, must have `ANTHROPIC_API_KEY` in env or set in config.
   - The default model is Claude Sonnet 3.5.
 
-#### Demos and Tutorials (WIP)
+### Demos and Tutorials (WIP)
 
 Planned demo materials will be linked once available:
 - **Assisted curation workflow** for preparing some kind of data asset for Synapse (e.g. a dataset).
