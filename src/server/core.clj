@@ -2,7 +2,7 @@
   (:gen-class)
   (:require [accent.state :refer [setup u]]
             [accent.chat :refer [stream-response save-messages]]
-            [agents.syndi :refer [OpenAISyndiAgent]]
+            [agents.syndi :refer [Syndi]]
             [org.httpkit.server :as httpkit]
             [compojure.core :refer [defroutes GET]]
             [compojure.route :as route]
@@ -38,10 +38,10 @@
         ;; (httpkit/send! channel (json/generate-string {:type "dcc-set" :dcc (:dcc parsed-msg)})))
 
       "chat"
-      (future (stream-response OpenAISyndiAgent (:content parsed-msg) nil clients))
+      (future (stream-response Syndi (:content parsed-msg) nil clients))
 
       "save"
-      (let [saved-messages (save-messages OpenAISyndiAgent)] 
+      (let [saved-messages (save-messages Syndi)] 
         (doseq [client @clients]
           (httpkit/send! client (json/generate-string {:type "system-message" :message (str "Saved as " saved-messages ".")}))))
 

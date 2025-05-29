@@ -25,11 +25,8 @@
  :aliases
  {:run {:main-opts ["-m" "accent.app"]}
   
-  :uberjar {:replace-deps {com.github.seancorfield/depstar {:mvn/version "2.1.303"}}
-            :exec-fn hf.depstar/uberjar
-            :exec-args {:jar "target/accent.jar"
-                        :aot true
-                        :main-class accent.app}}
+  :build {:deps {io.github.clojure/tools.build {:git/tag "v0.10.9" :git/sha "e405aac"}} 
+          :ns-default build}
   
   :native-image {:jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
                             "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}}

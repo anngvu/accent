@@ -18,13 +18,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           
-      - name: Install Leiningen
+      - name: Install Clojure
         uses: DeLaGuardo/setup-clojure@13.0
-        with:
-          lein: latest
           
       - name: Build uberjar
-        run: lein uberjar
+        run: clj -T:build uber
         
       - name: Create Release
         id: create_release
@@ -40,7 +38,7 @@ jobs:
       - name: Get artifact path
         id: get_artifact
         run: |
-          echo "artifact_path=$(ls ./target/uberjar/accent-*-standalone.jar)" >> $GITHUB_OUTPUT
+          echo "artifact_path=$(ls ./target/accent.jar)" >> $GITHUB_OUTPUT
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
