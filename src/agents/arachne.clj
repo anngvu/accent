@@ -9,8 +9,6 @@
             [clojure.string :as str]
             [com.brunobonacci.mulog :as mu]))
 
-(setup) 
-
 (mu/start-publisher! {:type :simple-file
                       :filename "/tmp/mulog/events.edn"})
 
@@ -32,7 +30,8 @@
 
 (def Arachne (agent/create-agent arachne-agent-config))
 
-(defn -main [] 
+(defn -main []
+  (setup)
   (.addShutdownHook 
    (Runtime/getRuntime) 
    (Thread. (fn [] 
@@ -42,5 +41,5 @@
                   (mu/log ::shutdown-error 
                              :msg "Error during shutdown" 
                              :exception e))) 
-              (mu/log ::shutdown :msg "Goodbye!")))) 
+              (mu/log ::shutdown :msg "Goodbye!"))))
   (agent/chat Arachne))

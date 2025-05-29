@@ -9,9 +9,6 @@
             [clojure.string :as str]
             [com.brunobonacci.mulog :as mu]))
 
-(setup)
-(new-syn (@u :sat))
-
 (mu/start-publisher! {:type :simple-file
                       :filename "/tmp/mulog/events.edn"})
 
@@ -32,7 +29,9 @@
 
 (def Syndi (agent/create-agent syndi-agent-config))
 
-(defn -main [] 
+(defn -main []
+  (setup)
+  (new-syn (@u :sat))
   (.addShutdownHook ;; add shutdown hook for Ctrl+C 
    (Runtime/getRuntime) 
    (Thread. (fn [] 
