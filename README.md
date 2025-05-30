@@ -71,7 +71,8 @@ This is recommended for most users. Run the jar by double-clicking the file. Thi
 
 ##### Terminal
 
-**This requires Clojure dev tooling** and is only recommended if you're comfortable with Clojure (or want to be comfortable with Clojure) and want to test experimental features and hack with the interface/framework internals:
+**This requires Clojure dev tooling** and is only recommended if you're comfortable with Clojure (or want to be comfortable with Clojure) and want to test experimental features and hack with the interface/framework internals. 
+It does give more control for running specific agents that might not be available in the web app.
 
 1. Install Clojure.
 2. Clone this repo.
