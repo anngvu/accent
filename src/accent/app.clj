@@ -22,18 +22,23 @@
 (defn -main [& args]
   (let [{:keys [options arguments summary errors]} (cli/parse-opts args cli-options)]
     (cond
-      (:help options) (println (usage summary))
-      errors (do (println "Error:" (first errors))
-                 (println (usage summary)))
-      (empty? arguments) (println (usage summary))
+      (:help options) 
+      (println (usage summary))
+      
+      errors 
+      (do 
+        (println "Error:" (first errors)) 
+        (println (usage summary)))
+      
+      (empty? arguments)
+      (client/start-server)
+
       :else
       (let [command (first arguments)
             ;; sub-args (rest arguments)
             ]
         (case command
           "app"          (client/start-server)
-          "mcp-server"   (mcp/-main)
-          (do 
-            (println "Starting app with default built-in client.") 
-            (client/start-server)))))))
+          "mcp-server"   (mcp/-main) 
+          (client/start-server))))))
   
