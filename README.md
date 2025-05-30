@@ -35,7 +35,7 @@ Unlike using generative AI in the default web interface, the application infrast
 There are several options to make use of these tools, resources, and prompts:
 
 1. *accent* can be run as an MCP server, in which case you bring your own preferred client that is MCP-compatible. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
-2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#running-the-application).
+2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#Built-in-client-interface).
 
 It might be helpful to read the [discussion of client differences](https://github.com/anngvu/accent?tab=readme-ov-file#Discussion-of-client-differences) first. 
 
