@@ -57,8 +57,8 @@ It might be helpful to read the [discussion of client differences](https://githu
       "-Dbabashka.json.provider=metosin/jsonista",
       "-Dlogging.level=INFO",
       "-cp",
-      "/Users/vedang/mcp-clojure-sdk/examples/target/io.modelcontextprotocol.clojure-sdk/examples-1.2.0.jar",
-      "calculator_server"
+      "/Users/you/accent.jar",
+      "server.mcp"
     ]
   }
 ```
