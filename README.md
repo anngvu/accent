@@ -45,20 +45,14 @@ It might be helpful to read the [discussion of client differences](https://githu
 
 1. Download a jar release 0.6.0 or later from the [releases page](https://github.com/anngvu/accent/releases).
 2. Set up config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
-3. Follow the configuration instructions for your client, e.g. with Claude for Desktop, add this to your configuration:
+3. Follow the configuration instructions for your client, e.g. [with Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), add this to your configuration:
 ```
   "accent": {
     "command": "java",
     "args": [
-      "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory",
-      "-Dorg.eclipse.jetty.util.log.class=org.eclipse.jetty.util.log.Slf4jLog",
-      "-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector",
-      "-Dlog4j2.configurationFile=log4j2-mcp.xml",
-      "-Dbabashka.json.provider=metosin/jsonista",
-      "-Dlogging.level=INFO",
-      "-cp",
-      "/Users/you/accent.jar",
-      "server.mcp"
+      "-jar",
+      "/Users/path/to/accent.jar",
+      "mcp-server"
     ]
   }
 ```
