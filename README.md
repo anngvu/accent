@@ -65,9 +65,9 @@ It might be helpful to read the [discussion of client differences](https://githu
 
 #### Built-in client interface
 
-The first few steps are the same as for MCP server mode:
+There are some common first steps:
 
-1. Download a jar release from the [releases page](https://github.com/anngvu/accent/releases) -- download release or later for the web app client interface.
+1. For the web app client interface, download a jar release v0.4 or later from the [releases page](https://github.com/anngvu/accent/releases).
 2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
 3. **Choose whether you want to run the web app or terminal below:**
 
@@ -77,11 +77,12 @@ This is recommended for most users. Run the jar by double-clicking the file. Thi
 
 ##### Terminal
 
-**This requires Clojure dev tooling** and is only recommended if you're comfortable with Clojure (or want to be comfortable with Clojure) and want to test experimental features and do some hacking:
+**This requires Clojure dev tooling** and is only recommended if you're comfortable with Clojure (or want to be comfortable with Clojure) and want to test experimental features and hack with the interface/framework internals:
 
-- Install Clojure.
-- Clone this repo. 
-- Run the desired agent module, e.g. `clj -M -m agents.syndi`.
+1. Install Clojure.
+2. Clone this repo.
+3. Set up a config file at the root of the repo. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
+4. Run the desired agent module, e.g. `clj -M -m agents.syndi`.
 
 #### Discussion of client differences
 
