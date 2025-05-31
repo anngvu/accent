@@ -90,7 +90,7 @@
   [& {:keys [ui] :or {ui :terminal}}]
   (let [user-config (read-config "config.edn")
         config (merge defaults user-config)]
-    (set-model-provider! config)
+    (when (not= :external-client ui) (set-model-provider! config)) ;; skip for mcp-server mode
     (set-syn-token! config)
     (when (config :tools)
       (try
@@ -98,6 +98,6 @@
           (init-db! {:env (config :db-env)})
           (mu/log ::configuration :info "Knowledgebase created!")) 
         (catch Exception e
-            (mu/log ::configuration :error (str "Error during knowledgebase setup:" (.getMessage e)))
-            (System/exit 1))))))
+          (mu/log ::configuration :error (str "Error during knowledgebase setup:" (.getMessage e)))
+          (System/exit 1))))))
 

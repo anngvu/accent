@@ -3,7 +3,8 @@
   (:require [accent.state :refer [setup u]]
             [accent.registry :refer [tool-registry deftool tools->mcp-format]]
             [accent.tools :as tools]
-            [io.modelcontext.clojure-sdk.stdio-server :as io-server]))
+            [io.modelcontext.clojure-sdk.stdio-server :as io-server]
+            [com.brunobonacci.mulog :as mu]))
 
 (def all-tools
   (-> @tool-registry
@@ -20,7 +21,7 @@
 
 (defn -main
   [& _args]
-  (setup)
+  (setup {:ui :external-client})
   (let [server-id (random-uuid)]
-    (println "Starting the *accent* MCP server...")
+    (mu/log ::mcp-server :info "Starting the *accent* MCP server...")
     @(io-server/run! (assoc accent-server-spec :server-id server-id))))
