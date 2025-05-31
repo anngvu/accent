@@ -3,6 +3,7 @@
   (:require [accent.state :refer [setup u]]
             [accent.registry :refer [tool-registry deftool tools->mcp-format]]
             [accent.tools :as tools]
+            [curate.synapse :refer [new-syn]]
             [io.modelcontext.clojure-sdk.stdio-server :as io-server]
             [com.brunobonacci.mulog :as mu]))
 
@@ -22,6 +23,7 @@
 (defn -main
   [& _args]
   (setup {:ui :external-client})
+  (new-syn (@u :sat))
   (let [server-id (random-uuid)]
     (mu/log ::mcp-server :info (str "Starting *accent* MCP server" server-id)) 
     @(io-server/run! (assoc accent-server-spec :server-id server-id))))
