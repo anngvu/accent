@@ -23,5 +23,5 @@
   [& _args]
   (setup {:ui :external-client})
   (let [server-id (random-uuid)]
-    (mu/log ::mcp-server :info "Starting the *accent* MCP server...")
+    (mu/log ::mcp-server :info (str "Starting *accent* MCP server" server-id)) 
     @(io-server/run! (assoc accent-server-spec :server-id server-id))))
