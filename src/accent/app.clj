@@ -3,6 +3,7 @@
   (:require  [clojure.tools.cli :as cli] 
              [server.core :as client]
              [server.mcp :as mcp]
+             [com.brunobonacci.mulog :as mu]
             ))
 
 (def cli-options
@@ -19,8 +20,10 @@
         options-summary]
        (clojure.string/join \newline)))
 
-(defn -main [& args]
+(defn -main [& args] 
   (let [{:keys [options arguments summary errors]} (cli/parse-opts args cli-options)]
+    (mu/start-publisher! {:type :simple-file
+                          :filename "/tmp/mulog/events.edn"})
     (cond
       (:help options) 
       (println (usage summary))
@@ -29,9 +32,6 @@
       (do 
         (println "Error:" (first errors)) 
         (println (usage summary)))
-      
-      (empty? arguments)
-      (client/start-server)
 
       :else
       (let [command (first arguments)

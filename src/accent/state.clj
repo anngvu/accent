@@ -83,7 +83,7 @@
     (with-open [r (java.io.PushbackReader. (io/reader filename))]
       (edn/read r))
     (catch Exception e
-      (mu/log ::configuration :error (str "Config file" filename "not found or invalid"))
+      (mu/log ::configuration :error (str "Config file" filename "not found."))
       (System/exit 1))))
 
 (defn setup
