@@ -27,3 +27,31 @@ A prototype agent focused on biomedical data fabric capabilities (data and knowl
 ### Extraction Agent
 
 The extraction agent can be run independently (terminal only) using `lein run -m agents.extraction`.
+
+#### Vanilla Agent
+
+This agent has no specific system prompt or tool access. It can be used as a "control" for testing and development. 
+
+#### How to interface with an agent
+
+##### Interactive chat
+
+This is the most common AI-assisted workflow, where you choose a specific agent to be your assistant in an interactive session.
+
+With the built-in web app client, you can open the web app with Syndi as the default agent (currently, this cannot be changed).
+
+With the terminal, more agents can be accessed. The command is `clj -M -m agents.syndi` or `clj -M -m agents.arachne`.
+
+##### Non-interactive batch/simulation
+
+In non-interactive batch/simulation mode, one can create an agent and assign some task for the agent to figure out as one walks away and gets some coffee (akin to "deep research"). 
+Currently, this is a more technical and manual mode to set up and **requires that you know what you're doing**, as it is especially like writing tests. 
+It may also be tricky to simulate some tasks/interactions well. 
+
+You may need to analyze what functions you need to replace so that agent actions don't affect production data, then set up an an environment with replacement of those functions. Example:
+- The task is to review many records and commit a correction to the database (Synapse platform) as needed.
+In an interactive version, you would have the chance to review and approve a correction before it is committed.
+In the non-interactive simulated version, you replace the `commit` tool with a version that writes the updated record to a file instead, instead of actually committing to Synapse.
+The result is a batch of files that you are able to review once the job is finished; you do not interact with the agent while it does its work. 
+
+
