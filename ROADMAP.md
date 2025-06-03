@@ -5,10 +5,10 @@ This roadmap is highly adaptive based on other current developments, project nee
 
 ### Phase I
 
-This phase was primarily concerned with implementation of a basic framework that:
+This phase was primarily concerned with creating a basic chat/agent framework that:
 - worked with at least two providers (OpenAI and Anthropic) 
-- provided a basic client interface (console and web UI) for users, explorinng some potentially useful features of a custom client interface (charting, product staging)
-- could be tested with workflows of interest (curation, data model RAG)
+- implemented relevant tools (primarily Synapse tools and embedded knowledge graph usage) and prompts
+- provided a basic client interface (terminal and web UI, streaming + non-streaming) for users, though with potentially useful features for charts and product staging
 
 - **v0.01** - Undifferentiated infrastructure  
     - Basic state management for user/api tokens, model, messages
@@ -41,9 +41,23 @@ This phase was primarily concerned with implementation of a basic framework that
     - Appropriate prompts and wrapper functionality for viz.
     - Working example staging function call for **dataset**
     - Working example visualize function call for data charting. 
-- **v0.6** - Agentic curation of external sources into structured format that can be stored as Synapse annotations.
+
+# Phase II
+
+Given a shifting landscape, in Phase II we will be deprioritizing "client-side" features but of course maintain the focus on curation tools and optimal agentic composition/workflows; add new focus on MCP compatibility; adapt to new interest in adding another provider (Google); explore how to integrate symbolic AI and other types of AI as tools that can be used in tandem with commodity LLMs. 
+
+The "client-side" features refer to features implemented in v0.4 and v0.5, which are focused on improving and adding features for our built-in custom interface. 
+When the roadmap was first created, Claude Desktop client and especially Model Context Protocol did not yet exist, but it seems likely that users will eventualy be subscribed to some AI provider, and each provider will have a desktop client such as [Claude Desktop](https://claude.ai/download), [OpenAI Desktop](https://openai.com/chatgpt/desktop/), etc., with eventual MCP compatibility even if the provider does not currently have MCP compatibility. 
+
+Some of these clients do very well at rendering charts and other visualizations so we don't need *accent* for this. 
+So even though we added visualization to make *accent* more usable in an AI-enabled analysis workflow, today it wouldn't be the best client for visualizing things; its strengths should be in providing the data more easily (from Synapse or local files) or specialized tools that help with the analysis (e.g. validation and harmonization of clinical data when combining data in the analysis) -- and this can be done via MCP. 
+
+- **v0.6** - Enable running *accent* in MCP server mode.
+
+- **v0.7** - Agentic curation of external sources into structured format that can be stored as Synapse annotations.
     - Create annotation data (JSON) given content/content sources and a JSON schema.
     - Storage into Synapse or local file.
 
-# Phase II
+
+
 
