@@ -8,7 +8,7 @@
             [clojure.java.io :as io]
             [clojure.data.csv :as csv]
             [cheshire.core :as json]
-            [csv2rdf.csvw :as csvw]
+            ;[csv2rdf.csvw :as csvw]
             [database.arachne :as arachne]
             [com.brunobonacci.mulog :as mu])
   (:import [java.io File]
@@ -243,20 +243,6 @@
                           "tableSchema" {"aboutUrl" (str "http://syn.org/ccdi/repo/" basename "/{_row}")
                                          "columns" all-columns}}]
             (json/generate-string csvw-map)))))))
-
-(defn csv-to-rdf
-  [csv-path]
-  (let [csv-file (io/file csv-path)
-        tmp-path (java.io.File/createTempFile "metadata" ".json")
-        meta-tmp-file (spit tmp-path (generate-csvw-metadata csv-path))
-        meta-file (io/file tmp-path)
-        output-file (java.io.File/createTempFile "data" ".ttl")]
-  (csvw/csv->rdf->file csv-file meta-file output-file {:mode :minimal})
-  output-file))
-
-(defn load-csv-into-graph
-  [csv-path]
-  (with-out-str (load-file-into-graph (csv-to-rdf csv-path))))
 
 ;; TESTS
 ;;
