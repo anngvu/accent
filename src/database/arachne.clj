@@ -21,33 +21,28 @@
   "NOTE: Don't use owl:samePropertyAs as this does have some implications we don't want"
   []
   (reg/with {'g "http://syn.org/"}
-    (inf/rule
-     :name "Same CDE ID implies :mapping relation"
-     :body '[[?p1 :g/isCDE ?id]
-             [?p2 :g/isCDE ?id]
-             (not= ?p1 ?p2)]
-    :head '[[?p1 :g/mapping ?p2]]
-    :dir :forward)
-    (inf/rule
-     :name ":mapping is a symmetric property"
-     :body '[[?p1 :g/mapping ?p2]]
-     :head '[[?p2 :g/mapping ?p1]]
-     :dir :forward)))
+            (inf/rule
+             :name "Same CDE ID implies :mapping relation"
+             :body '[[?p1 :g/isCDE ?id]
+                     [?p2 :g/isCDE ?id]
+                     (not= ?p1 ?p2)]
+             :head '[[?p1 :g/mapping ?p2]]
+             :dir :forward)
+            (inf/rule
+             :name ":mapping is a symmetric property"
+             :body '[[?p1 :g/mapping ?p2]]
+             :head '[[?p2 :g/mapping ?p1]]
+             :dir :forward)))
 
-;; Initialize the graph
-(defn init-graph
+;; Build-time functions (used during development/build)
+(defn build-graph
+  "Build the complete graph with all rules and data"
   []
-  (let [rules [inf/table-all]
-        ;rules (conj [inf/table-all] (mapped-prop-rule))
-        ]
-    (with-out-str
-      (reset! kg (aa/graph :jena-rules rules)))))
+  (let [rules [inf/table-all]]
+    (aa/graph :jena-rules rules)))
 
-(init-graph)
-
-(defn load-file-into-graph [file-path]
-  (swap! kg (fn [current-graph]
-                       (aa/read current-graph file-path))))
+(defn load-file-into-graph [graph file-path]
+  (aa/read graph file-path))
 
 (defn get-all-turtle-files
   "Get all turtle files from resources directory"
@@ -63,25 +58,132 @@
         (mu/log ::arachne :info "Resources directory not found or not a directory")
         []))))
 
-(defn load-all-turtle-files
-  "Create a Jena-mini graph and load all ttl files from directory"
-  []
-  (let [ttl (get-all-turtle-files)]
-    (if (empty? ttl)
-      (mu/log ::arachne :info "No .ttl files found!")
-      (do
-        (mu/log ::arachne :info (str "Loading " (count ttl) " resource files into graph..."))
-        (doseq [file ttl]
-          (mu/log ::arachne :info (str "Loading " file))
-          (load-file-into-graph file))))))
+(defn build-and-serialize-graph
+  "Build the complete graph and serialize it to a file"
+  [output-path]
+  (let [graph (build-graph)
+        ttl-files (get-all-turtle-files)]
+    (mu/log ::arachne :info (str "Building graph with " (count ttl-files) " files..."))
+    (let [final-graph (reduce load-file-into-graph graph ttl-files)]
+      (mu/log ::arachne :info "Serializing graph to" output-path) 
+      (when-let [parent-dir (.getParentFile (io/file output-path))]
+        (.mkdirs parent-dir))
+      (aa/write final-graph output-path :turtle)
+      (mu/log ::arachne :info "Graph serialized successfully to" output-path)
+      final-graph)))
 
-(load-all-turtle-files)
+;; Runtime functions (used in deployed JAR)
+(defn load-prebuilt-graph
+  "Load the prebuilt serialized graph from resources"
+  []
+  (let [graph-resource "resources/rdf/prebuilt-graph.ttl"]
+    (if-let [resource (io/resource graph-resource)]
+      (do
+        (mu/log ::arachne :info "Loading prebuilt graph from" graph-resource)
+        (let [rules [inf/table-all]
+              graph (aa/graph :jena-rules rules)]
+          (aa/read graph resource)))
+      (do
+        (mu/log ::arachne :warn "Prebuilt graph not found, building from scratch")
+        (build-and-serialize-graph "resources/rdf/prebuilt-graph.ttl")))))
+
+(defn get-custom-turtle-files
+  "Get all turtle files from a custom directory specified by user"
+  [custom-dir]
+  (let [dir (File. custom-dir)
+        exists? (.exists dir)
+        is-dir? (.isDirectory dir)]
+    (if (and exists? is-dir?)
+      (->> (.listFiles dir)
+           (filter #(.endsWith (.getName %) ".ttl"))
+           (map #(.getAbsolutePath %)))
+      (do
+        (mu/log ::arachne :error (str "Custom TTL directory not found or not a directory: " custom-dir))
+        []))))
+
+(defn build-graph-from-custom-data
+  "Build graph from user-specified files"
+  [custom-dir]
+  (let [graph (build-graph)
+        ttl-files (get-custom-turtle-files custom-dir)]
+    (if (empty? ttl-files)
+      (do
+        (mu/log ::arachne :error (str "No TTL files found in custom directory: " custom-dir))
+        (mu/log ::arachne :info "Falling back to prebuilt graph")
+        (load-prebuilt-graph))
+      (do
+        (mu/log ::arachne :info (str "Building graph from custom data: " (count ttl-files) " files in " custom-dir))
+        (reduce load-file-into-graph graph ttl-files)))))
+
+;; Initialize based on environment
+(defn init-graph
+  "Initialize the graph - check for custom data path, otherwise use prebuilt"
+  []
+  (let [custom-data-path (System/getenv "ARACHNE_DATA_PATH")]
+    (if custom-data-path
+      (do
+        (mu/log ::arachne :info (str "Custom TTL path specified: " custom-data-path))
+        (reset! kg (build-graph-from-custom-data custom-data-path)))
+      (do
+        (mu/log ::arachne :info "Using prebuilt graph")
+        (reset! kg (load-prebuilt-graph))))))
 
 (defn count-triples [graph]
   (count (iterator-seq (.find (.getRawGraph graph)))))
 
+;; Build script
+(defn -main
+  "Build the prebuilt graph file"
+  [& args]
+  (let [output-path (or (first args) "resources/rdf/prebuilt-graph.ttl")]
+    (build-and-serialize-graph output-path)
+    (mu/log ::arachne :info "Prebuilt graph created at" output-path)))
+
+;; Initialize at load time
+(init-graph)
+
+;; Runtime utilities
+
+(defn reload-graph!
+  "Reload the graph - useful for development or when data changes"
+  []
+  (mu/log ::arachne :info "Reloading graph...")
+  (init-graph)
+  (mu/log ::arachne :info "Graph reloaded with" (count-triples @kg) "triples"))
+
+(defn get-graph-info
+  "Get information about the current graph"
+  []
+  {:triple-count (count-triples @kg)
+   :source (if (System/getenv "ARACHNE_DATA_PATH")
+             {:type :custom-data
+              :path (System/getenv "ARACHNE_DATA_PATH")}
+             {:type :prebuilt})
+   :environment-variables {:ARACHNE_DATA_PATH (System/getenv "ARACHNE_DATA_PATH")}})
+
+(defn validate-custom-directory
+  "Validate that a custom directory exists and contains TTL files"
+  [dir-path]
+  (let [dir (File. dir-path)]
+    (cond
+      (not (.exists dir))
+      {:valid? false :error "Directory does not exist"}
+
+      (not (.isDirectory dir))
+      {:valid? false :error "Path is not a directory"}
+
+      (empty? (get-custom-turtle-files dir-path))
+      {:valid? false :error "Directory contains no .ttl files"}
+
+      :else
+      {:valid? true :ttl-files (get-custom-turtle-files dir-path)})))
+
 ;; Check
 (mu/log ::arachne :info "Arachne knowledge graph created with" (count-triples @kg) "triples")
+
+;; --------------------------------------------------------------------------------------
+;; DEFAULT QUERY FNS
+;; --------------------------------------------------------------------------------------
 
 (defn get-prop-mapping
   [p]
@@ -101,7 +203,7 @@
                    `[:bgp [~uri ?p ?o]])))
 
 (defn get-same-property
-  "Get matching property property based on potentially same CDE"
+  "Get matching property based on potentially same CDE"
   [uri]
   (reg/with {'g "http://syn.org/"}
             (q/run @kg '[?match ?match_label]
@@ -182,8 +284,13 @@
                 [?template :rdf/type :g/Template]
                 [?template :dct/conformsTo ~uri]])))
 
+(defn run-sparql-query [sparql]
+  (let [op (q/parse sparql)]
+    (q/run @kg op)))
 
-;; UTILS
+;; --------------------------------------------------------------------------------------
+;; LOAD INSTANCE DATA FROM FILES
+;; --------------------------------------------------------------------------------------
 
 (defn- get-file-basename
   "Extracts the basename of a file from its path (removes directory and last extension)."
@@ -258,7 +365,9 @@
   [csv-path]
   (with-out-str (load-file-into-graph (csv-to-rdf csv-path))))
 
-;; TESTS
+;; --------------------------------------------------------------------------------------
+;; DEVELOPMENT
+;; --------------------------------------------------------------------------------------
 ;;
 ; (def standard "<http://syn.org/gdc>")
 ; (def a "<http://syn.org/gdc/study/study_name>")
@@ -294,8 +403,3 @@
 ;;  } WHERE {
 ;;    ?prop g:node <http://syn.org/gdc/study>
 ;;  }")
-
-(defn run-sparql-query [sparql]
-  (let [op (q/parse sparql)]
-    (q/run @kg op)))
-
