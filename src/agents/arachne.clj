@@ -27,7 +27,7 @@
           "You may retrieve the list of potential target templates in the GDC standard. Note that the inputs may not have a 1:1 match to the GDC templates, so not all GDC templates are output targets, only the relevant ones. "
           "Once you have determined which GDC templates to output and how to translate the data sufficiently, either submit the csv data directly or use the mapping/transform specification schema (below), whichever is better. The output must contain/specify all columns in the target template!\n"
           (slurp (io/resource "specs/map_spec.json")))
-   :tools #{:find-matching-attribute :get-attribute-meta :get-template-meta :list-standard-templates :summarize-file}})
+   :tools #{:find-matching-attribute :get-attribute-meta :get-template-meta :list-standard-templates :summarize-csv}})
 
 (def Arachne (agent/create-agent arachne-agent-config))
 
