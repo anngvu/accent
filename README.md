@@ -5,19 +5,24 @@
 
 ### Motivation
 
-#### For biomedical curators/data managers
+#### For people who do scientific data management/curation
 
-Research communities supported by dedicated data curators/managers receive the benefit of having data packaged and disseminated optimally for reuse. 
-Data managers themselves could benefit from tooling to facilitate their important and hard work of curating data, developing the data model, and facilitating data sharing in general. 
-And like with other knowledge work, including AI could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1]. 
-> Developers can also help with figuring out where AI can be inserted into workflows and how to design technology for doing that. 
+Science is built upon data. Research communities have the goal of sharing data packaged and disseminated optimally for (re)use. 
 
-This is such an application. Some data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
+If the community is lucky, this is supported by dedicated data curators/managers and contributing scientists are also directly involved. 
+
+If the community is even luckier, good data curation/management tools are available for the processes of developing and applying a common data model, sharing data, finding data, assessing data, etc.
+
+Like with other knowledge work, incorporating AI (just another tool that can use tools) could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1] and maximize ergonomics.
+
+> Developers can also help with figuring out **where AI can be inserted into workflows and how to design technology for doing that**. 
+
+Data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
 1. Data curation -- create, organize, QC, and publish FAIR/harmonized data assets to the best advantage. 
 2. Develop standards and data models. 
 3. Maintain data management plans and SOPs. 
 4. Facilitate data analysis/reuse and reporting for stakeholders, regulatory authorities, etc. 
-5. Oversee the integration of apps/new technologies and initiatives into data standards and structures. 
+5. Integration of apps/new technologies and initiatives into data standards and structures. 
 
 <!-- #### And for everyone
 
@@ -25,38 +30,68 @@ Everyone is a curator and could benefit from AI-assisted curation. This open-sou
 
 ### Usage
 
-With more power comes more responsibility. 
-Unlike interacting with generative AI in the default web interface, the application infrastructure here includes prompts and logic already optimized to project-specific workflows, direct API access to relevant platforms (Synapse), the local file system, configured databases, and additional tools/agents to accomplish various tasks. This infrastructure will also need to include guardrails.
+Unlike using generative AI in the default web interface, the application infrastructure here adds prompts and logic already optimized to project-specific workflows, API access to relevant platforms (Synapse), ability to read local files, ability to read and write to embedded databases for RAG, and other tools and resources to accomplish various tasks in the realm of data curation/management.
 
-First make sure Java is installed on your system. Then, for most regular end users, download and use the artifact jar.
+There are several options to make use of these tools, resources, and prompts:
 
-##### With a release jar (most end users)
+1. *accent* can be run as an MCP server so you can use your favorite MCP-compatible client. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
+2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#Built-in-client-interface).
 
-- Download some available release from the [releases page](https://github.com/anngvu/accent/releases).
-- Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
-- Run the jar, e.g. `java -jar accent-{version}.jar` or double-clicking the file. 
+There is also a more detailed discussion of clients in doc/MCP.md that might be helpful to read. 
 
-By default, this should open a web app with your default browser with Syndi as your assistant.
+#### MCP Server mode
 
-##### With Clojure dev tooling
+*accent* can be run as a local MCP server that you use with your preferred desktop client.
 
-If you're comfortable with Clojure (or want to be comfortable with Clojure) and enable additional hacking:
+1. Download a jar release v0.6.0 or later from the [releases page](https://github.com/anngvu/accent/releases).
+2. Follow the configuration instructions for your client, e.g. [with Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), an example is:
+```
+{ 
+  "mcpServers" {
+    "accent": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "/Users/path/to/accent.jar",
+        "mcp-server"
+      ],
+      "env": {  
+        "SYNAPSE_AUTH_TOKEN": "your-synapse-pat"
+      }
+    },
+    ...
+  }
+}
+```
 
-- Clone this repo. 
-- Install [Leiningen](https://leiningen.org/) (the easiest way to use Clojure).
-- Run `lein deps` to install dependencies.
-- Create a config file called `config.edn`. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
-- Choose UI:
-  - For web UI, which is recommended and already default: `lein run -m accent.app`
-  - Alternatively, the terminal console/REPL currently allows different agents other than Syndi, or to interact with different module functions directly.
-    
+#### Built-in client interface
+
+You can use the built-in client interface in *accent*, but note that they are rather minimal.
+
+1. For the web app client interface, download a jar release v0.4.0 or later from the [releases page](https://github.com/anngvu/accent/releases).
+2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
+3. **Choose whether you want to run the web app or console UI below:**
+
+##### Web app
+
+This is recommended for most users. Run the jar by double-clicking the file. This should open a browser window with your default browser app with Syndi as your assistant.
+
+##### Console
+
+**This requires Clojure dev tooling** and is only recommended if you're comfortable with Clojure (or want to be comfortable with Clojure) and want to test experimental features and hack with the interface/framework internals. 
+It does give more control for running specific agents that might not be available in the web app.
+
+1. Install Clojure.
+2. Clone this repo.
+3. Set up a config file at the root of the repo. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
+4. Run the desired agent module, e.g. `clj -M -m agents.syndi`.
+
 #### Configuration
 
-Settings and (optionally) credentials can be defined in `config.edn`. 
+Settings and (optionally) credentials ares defined in `config.edn`. 
 Review the `example_config.edn` file; rename it to `config.edn` and modify as needed. 
-In addition to the comments in the example file, more discussion is provided below.
 
-##### AI Providers specification
+##### AI Providers specification in configuration
 
 > [!NOTE]  
 > Only OpenAI works with *both* web app UI and developer console for now. Anthropic only works with the developer console.
@@ -74,7 +109,16 @@ Tip for usage: Trying to reduce costs by switching to a cheaper model for some t
   - To use, must have `ANTHROPIC_API_KEY` in env or set in config.
   - The default model is Claude Sonnet 3.5.
 
-#### Demos and Tutorials (WIP)
+
+### Docs
+
+- doc/AGENTS.md describes and explains more about agents and usage.
+- doc/MCP.md describes and explains more about Model Context Protocol.
+- doc/ROADMAP.md describes roadmap and context.
+- doc/DESIGN.gv reflects a draft architecture of app.
+
+
+### Demos and Tutorials (WIP)
 
 Planned demo materials will be linked once available:
 - **Assisted curation workflow** for preparing some kind of data asset for Synapse (e.g. a dataset).
@@ -83,50 +127,6 @@ Planned demo materials will be linked once available:
 <!--  ##### For personal knowledge curation 
 
 TBD. -->
-
-### Dynamic Roadmap
-
-**This roadmap adapts to the feedback and interest received.** 
-Functionality have been scoped/mapped as below for specific versions. 
-Feel free to propose a new feature or fast-tracking an existing one. 
-
-- **v0.01** - Undifferentiated infrastructure  
-    - Basic state management for user/api tokens, model, messages
-    - Integrate OpenAI APIs for selected ChatGPT models
-    - Basic working chat through console (see POC roadmap where for later interface enhancements beyond console)
-    - Simple function to save chats (Use case for this: For users, capture history for reference. For developers, help with testing and analysis)
-    - Working project configuration and build scripts
-- **v0.1** - First assisted workflow for dataset curation for **NF** use case, under the umbrella of Responsibility 1.
-    - Automatically pull in DCC configurations at startup -- we should know to use consistent DCC settings, and not have to specify them manually either
-    - Add DCC configuration to state management
-    - Implement integration of Synapse APIs needed for this curation workflow (querying and download)
-    - Define basic prompts and wrappers for Synapse querying and curation workflow
-    - Working `curate_dataset` function call
-- **v0.2** - MVP for data model exploration and comparison for data models in the schematic JSON-LD with a chat interface (RAG), relevant to Responsibility 2.
-    - Integrate a suitable local database solution
-    - Implement ETL of data model graphs at startup
-    - Implement database schemas, instantiation and management
-    - Define some basic canned queries for model usage/training
-    - Define appropriate prompts and wrapper functionality for RAG
-    - Working `ask_database` function call
-- **v0.3** - Enable another AI provider (Anthropic) for flexibility and potential benchmarking applications. 
-    - Integrate Anthropic Claude models.
-    - Parity in terms of tool use (function calling).
-- **v0.4** - Implement upgraded UI / UX as an alternative to the basic console (simple web UI).
-    - Set up local server.
-    - Implement UI.
-    - Implement streaming.
-- **v0.5** - Basic interactive staging and visualization.
-    - Integrate a basic package/solution for viz.
-    - Appropriate prompts and wrapper functionality for viz.
-    - Working example staging function call for **dataset**
-    - Working example visualize function call for data charting. 
-- **v0.6** - Curation of external sources into structured format that can be stored as Synapse annotations.
-    - Functionality to create annotation data (JSON) given content/content source and a JSON schema:
-      -  (required) A scrapable web page and JSON schema.
-      -  (maybe) A local text source and JSON schema.
-    - Storage into Synapse or local file.
-
 
 
 Nothing more is planned until after the Evaluation (below).

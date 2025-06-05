@@ -74,5 +74,6 @@
   (new-syn (@u :sat))
   (swap! u assoc :stream true)
   (let [server (httpkit/run-server app-routes {:port 3000})]
+    (println "Starting app at http://localhost:3000...")
     (browse-url "http://localhost:3000")
     server))
