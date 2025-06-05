@@ -271,7 +271,8 @@
   (let [result (cu/summarize-manifest file)]
     ;; (mu/log ::summarize-file  :filename file)
     {:text (str result)
-     :type :success}))
+     :type "text"
+     :isError false}))
 
 (registry/deftool
   :summarize-file
