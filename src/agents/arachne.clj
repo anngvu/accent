@@ -7,6 +7,7 @@
             [database.arachne :as arachne]
             [cheshire.core :as json]
             [clojure.string :as str]
+            [clojure.java.io :as io]
             [com.brunobonacci.mulog :as mu]))
 
 (mu/start-publisher! {:type :simple-file
@@ -25,7 +26,7 @@
           "For example, given a CSV file called 'sample.csv' that may contain column 'sample_attribute_1', you can see whether 'sample_attribute_1' matches an attribute in the GDC standard, which GDC template it's used in, and acceptable values for the GDC version of the attribute. "
           "You may retrieve the list of potential target templates in the GDC standard. Note that the inputs may not have a 1:1 match to the GDC templates, so not all GDC templates are output targets, only the relevant ones. "
           "Once you have determined which GDC templates to output and how to translate the data sufficiently, either submit the csv data directly or use the mapping/transform specification schema (below), whichever is better. The output must contain/specify all columns in the target template!\n"
-          (slurp "resources/map_spec.json"))
+          (slurp (io/resource "specs/map_spec.json")))
    :tools #{:find-matching-attribute :get-attribute-meta :get-template-meta :list-standard-templates :summarize-file}})
 
 (def Arachne (agent/create-agent arachne-agent-config))

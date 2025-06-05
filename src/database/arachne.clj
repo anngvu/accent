@@ -76,13 +76,13 @@
 (defn load-prebuilt-graph
   "Load the prebuilt serialized graph from resources"
   []
-  (let [graph-resource "resources/rdf/prebuilt-graph.ttl"]
+  (let [graph-resource "rdf/prebuilt-graph.ttl"]
     (if-let [resource (io/resource graph-resource)]
       (do
-        (mu/log ::arachne :info "Loading prebuilt graph from" graph-resource)
+        (mu/log ::arachne :info "Loading prebuilt graph")
         (let [rules [inf/table-all]
               graph (aa/graph :jena-rules rules)]
-          (aa/read graph resource)))
+          (aa/read graph graph-resource)))
       (do
         (mu/log ::arachne :warn "Prebuilt graph not found, building from scratch")
         (build-and-serialize-graph "resources/rdf/prebuilt-graph.ttl")))))

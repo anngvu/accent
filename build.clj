@@ -16,7 +16,7 @@
 (defn build-prebuilt-graph
   "Generate the prebuilt graph from RDF sources"
   [_]
-  (println "Building prebuilt knowledge graph...")
+  (println "Adding prebuilt knowledge graph...")
   (let [result (shell/sh "clojure" "-M" "-m" "database.arachne" prebuilt-graph-file)]
     (if (zero? (:exit result))
       (println "✓ Prebuilt graph generated successfully at" prebuilt-graph-file)
