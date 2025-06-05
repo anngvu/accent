@@ -122,7 +122,7 @@
   (let [custom-data-path (System/getenv "ARACHNE_DATA_PATH")]
     (if custom-data-path
       (do
-        (mu/log ::arachne :info (str "Custom TTL path specified: " custom-data-path))
+        (mu/log ::arachne :info (str "Custom graph data path specified: " custom-data-path))
         (reset! kg (build-graph-from-custom-data custom-data-path)))
       (do
         (mu/log ::arachne :info "Using prebuilt graph")
