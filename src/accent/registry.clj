@@ -553,6 +553,16 @@
   ;; Example usage
   
   ;; Define tools and prompts
+  (deftool :greet
+    "Greet a person"
+    {:type "object"
+     :properties {"name" {:type "string"}}
+     :required ["name"]}
+    :category #{:social}
+    :permissions #{:read}
+    
+    {:message (str "Hello, " (:name args) "!")})
+  
   (defprompt :analyze-code
     "Analyze code for improvements"
     :arguments [{:name "language" :description "Programming language" :required true}
