@@ -70,10 +70,10 @@
          result (try-get-async-result client job-token table-id)]
     (if result
       (do
-        (println "Results retrieved.")
+        ;; (println "Results retrieved.")
         result)
       (do
-        (println "Waiting for Synapse query result...")
+        ;; (println "Waiting for Synapse query result...")
         (Thread/sleep backoff-ms)
         (recur (inc retry-count) backoff-ms (try-get-async-result client job-token table-id))))))
 
