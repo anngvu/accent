@@ -257,7 +257,7 @@
   "Read text content from local file or URL."
   {:type "object"
    :properties {"file" {:type "string"
-                       :description "Local file path or URL"}}
+                        :description "Local file path or URL"}}
    :required ["file"]}
   :category #{:io}
   :permissions #{:read}
