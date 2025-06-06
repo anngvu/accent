@@ -85,7 +85,6 @@
   (let [ann-map (json/parse-string data)
         id (if entity_id entity_id (create-folder @syn product_name entity_id))
         response (set-annotations @syn id ann-map)]
-    (println "Metadata stored on/within" collection_id entity_id)
     (if (= 200 (:status response))
       {:text "Committed successfully."
        :type "text"
