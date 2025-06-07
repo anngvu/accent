@@ -44,15 +44,19 @@ There is also a more detailed discussion of clients in doc/MCP.md that might be 
 *accent* can be run as a local MCP server that you use with your preferred desktop client.
 
 1. Download a jar release v0.6.0 or later from the [releases page](https://github.com/anngvu/accent/releases).
-2. Follow the configuration instructions for your client, e.g. [with Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), an example is:
+2. Follow the configuration instructions for your client. With [Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), use the configuration below:
 ```
 { 
   "mcpServers" {
     "accent": {
       "command": "java",
       "args": [
+        "-Dclojure.tools.logging.factory=clojure.tools.logging.impl/log4j2-factory",
+        "-Dorg.eclipse.jetty.util.log.class=org.eclipse.jetty.util.log.Slf4jLog",
+        "-Dlog4j2.contextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector",
+        "-Dlog4j2.configurationFile=log4j2-mcp.xml",
         "-jar",
-        "/Users/path/to/accent.jar",
+        "/Users/your/path/to/accent.jar",
         "mcp-server"
       ],
       "env": {  
