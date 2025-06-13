@@ -548,39 +548,3 @@
                   (dissoc :handler)
                   (assoc :handler-type (type (:handler (get-prompt item-name)))))
       nil)))
-
-(comment
-  ;; Example usage
-  
-  ;; Define tools and prompts
-  (deftool :greet
-    "Greet a person"
-    {:type "object"
-     :properties {"name" {:type "string"}}
-     :required ["name"]}
-    :category #{:social}
-    :permissions #{:read}
-    
-    {:message (str "Hello, " (:name args) "!")})
-  
-  (defprompt :analyze-code
-    "Analyze code for improvements"
-    :arguments [{:name "language" :description "Programming language" :required true}
-                {:name "code" :description "Code to analyze" :required true}]
-    :category :development
-    :permissions #{:read}
-    
-    {:messages [{:role "assistant"
-                 :content {:type "text"
-                          :text (str "Analyzing " (:language args) " code: " (:code args))}}]})
-  
-  ;; Check registry health
-  (health-check-registry)
-  
-  ;; Search for items
-  (search-items "code")
-  
-  ;; List everything
-  (list-all-items)
-)
-
