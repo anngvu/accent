@@ -17,13 +17,14 @@
 
 (def accent-server-spec
   {:name "accent: AI-Assisted Curation/Content ENhancement Tools",
-   :version "0.7.0",
+   :version "0.7.1",
    :tools all-tools})
 
 (defn -main
   [& _args]
   (setup {:ui :external-client})
   (new-syn (@u :sat))
+  (alter-var-root #'tools/*schematic-auth-token* (constantly (@u :sat)))
   (let [server-id (random-uuid)]
     (mu/log ::mcp-server :info (str "Starting *accent* MCP server" server-id)) 
     @(io-server/run! (assoc accent-server-spec :server-id server-id))))
