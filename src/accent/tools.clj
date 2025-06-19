@@ -359,10 +359,10 @@
                          :description "Title of Manifest or Title Prefix, if making multiple manifests"}
                 "data_type" {:type "array"
                              :items {:type "string"}
-                             :description "Data Model Component(s). To make all manifests, enter [\"all manifests\"]"}
+                             :description "Data model component(s). To make all manifests, enter [\"all manifests\"]"}
                 "use_annotations" {:type "boolean"
                                    :default false
-                                   :description "To Use Annotations"}
+                                   :description "Use annotations?"}
                 "dataset_id" {:type "array"
                               :items {:type "string"}
                               :description "Dataset ID(s). If getting existing manifest, this should be parent ID of the manifest"}
@@ -408,11 +408,11 @@
                  dataset_scope (assoc "dataset_scope" dataset_scope))
         multipart-data (when file_path
                          [{:name "file_name"
-                           :content (io/file file_path)}])]
+                           :content (io/input-stream file_path)}])]
     (make-api-request :post "/model/submit" params :multipart-data multipart-data)))
 
 (registry/deftool :submit-manifest
-  "Submit annotated manifest files to validate and store in Synapse"
+  "Submit annotated manifest file to validate and store in Synapse"
   {:type "object"
    :properties {"schema_url" {:type "string"
                               :description "Data Model URL"}
@@ -434,7 +434,7 @@
                                :description "Skip annotations with blank values"}
                 "asset_view" {:type "string"
                               :description "ID of view listing all project data assets"}
-                ;Data can be JSON *or* file; since nearly all users will have a file, don't surface this
+                ;Data can be JSON *or* file; since nearly all users use file, don't surface this as it can cause confusion
                 ;"json_str" {:type "string"
                 ;            :description "JSON string representation of manifest data"}
                 "table_manipulation" {:type "string"
@@ -458,7 +458,7 @@
                                  :description "Dataset to validate against for filename validation"}
                 "file_path" {:type "string"
                              :description "Local path to manifest file (CSV or JSON) to upload"}}
-   :required ["schema_url" "dataset_id" "restrict_rules" "asset_view"]}
+   :required ["schema_url" "dataset_id" "restrict_rules" "asset_view" "file_path"]}
   :category #{:schematic :manifest :validation}
   :permissions #{:write}
   :handler submit-manifest-handler)
@@ -479,7 +479,7 @@
                  dataset_scope (assoc "dataset_scope" dataset_scope))
         multipart-data (when file_path
                          [{:name "file_name"
-                           :content (io/file file_path)}])]
+                           :content (io/input-stream file_path)}])]
     (make-api-request :post "/model/validate" params :multipart-data multipart-data)))
 
 (registry/deftool :validate-manifest
@@ -507,7 +507,7 @@
                                  :description "Dataset to validate against for filename validation"}
                 "file_path" {:type "string"
                              :description "Local path to manifest file (CSV or JSON) to validate"}}
-   :required ["schema_url" "data_type"]}
+   :required ["schema_url" "data_type" "file_path"]}
   :category #{:schematic :manifest :validation}
   :permissions #{:read}
   :handler validate-manifest-handler)
