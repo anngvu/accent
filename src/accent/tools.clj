@@ -421,7 +421,7 @@
                                      :default "class_label"
                                      :description "How to set labels in the data model"}
                 "data_type" {:type "string"
-                             :description "Data Model Component (e.g. 'Patient')"}
+                             :description "Data model component (e.g. 'Patient')"}
                 "dataset_id" {:type "string"
                               :description "Dataset SynID where manifest will be stored"}
                 "manifest_record_type" {:type "string"
@@ -431,11 +431,12 @@
                                   :default false
                                   :description "If true, only use in-house validation rules; if false, use Great Expectations"}
                 "hide_blanks" {:type "boolean"
-                               :description "Hide annotations with blank values from Synapse dataset"}
+                               :description "Skip annotations with blank values"}
                 "asset_view" {:type "string"
                               :description "ID of view listing all project data assets"}
-                "json_str" {:type "string"
-                            :description "JSON string representation of manifest data"}
+                ;Data can be JSON *or* file; since nearly all users will have a file, don't surface this
+                ;"json_str" {:type "string"
+                ;            :description "JSON string representation of manifest data"}
                 "table_manipulation" {:type "string"
                                       :enum ["replace" "upsert"]
                                       :description "How to handle existing tables with same name"}
@@ -495,8 +496,8 @@
                 "restrict_rules" {:type "boolean"
                                   :default false
                                   :description "If true, only use in-house validation rules; if false, use Great Expectations"}
-                "json_str" {:type "string"
-                            :description "JSON string representation of manifest data to validate"}
+                ;"json_str" {:type "string"
+                ;            :description "JSON string representation of manifest data to validate"}
                 "asset_view" {:type "string"
                               :description "ID of view listing all project data assets (required for cross-manifest validation)"}
                 "project_scope" {:type "array"
