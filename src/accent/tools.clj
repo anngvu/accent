@@ -5,6 +5,7 @@
             [database.arachne :as arachne]
             [cheshire.core :as json]
             [clj-http.client :as http]
+            [babashka.http-client :as client]
             [malli.core :as m]
             [clojure.java.io :as io]))
 
@@ -303,35 +304,8 @@
 ;; =============================================================================
 ;; Define and Register Schematic Tools
 ;; =============================================================================
-
+""
 (def ^:dynamic *schematic-auth-token* nil)
-
-(defn make-api-request
-  "Helper function to make HTTP requests to the Schematic API"
-  [method endpoint params & {:keys [multipart-data]}]
-  (try
-    (let [url (str "https://schematic.api.sagebionetworks.org/v1" endpoint)
-          headers (cond-> 
-                   {"Content-Type" "application/json"} 
-                    *schematic-auth-token* (assoc "Authorization" (str "Bearer " *schematic-auth-token*)))
-          request-opts (cond-> {:headers headers
-                                :throw-exceptions false}
-                         (= method :get) (assoc :query-params params)
-                         (= method :post) (assoc :query-params params)
-                         multipart-data (assoc :multipart multipart-data))]
-      (let [response (case method
-                       :get (http/get url request-opts)
-                       :post (http/post url request-opts))]
-        (if (<= 200 (:status response) 299)
-          {:type "text"
-           :text (or (:body response) "Success")}
-          {:type "text"
-           :text (str "API Error: " (:status response) " - " (:body response))
-           :isError true})))
-    (catch Exception e
-      {:type "text"
-       :text (str "Request failed: " (.getMessage e))
-       :isError true})))
 
 ;; ----------------------------------------------------------------------------
 ;; /manifest/generate
@@ -348,28 +322,30 @@
                  output_format (assoc "output_format" output_format)
                  strict_validation (assoc "strict_validation" strict_validation)
                  data_model_labels (assoc "data_model_labels" data_model_labels))]
-    (make-api-request :get "/manifest/generate" params)))
+    (http/get "https://schematic.api.sagebionetworks.org/v1/manifest/generate"
+              {:query-params params
+               :headers {"Authorization" (str "Bearer " *schematic-auth-token*)}})))
 
 (registry/deftool :generate-manifest
-  "Generate metadata manifest files for a given data model and component(s)"
+  "Generate metadata manifest (fillable template file) for a given data model and dataset"
   {:type "object"
    :properties {"schema_url" {:type "string"
-                              :description "Data Model URL (e.g. https://raw.githubusercontent.com/Sage-Bionetworks/schematic/develop/tests/data/example.model.jsonld)"}
+                              :description "Data model URL (organization-specific, refer to known configurations)"}
                 "title" {:type "string"
-                         :description "Title of Manifest or Title Prefix, if making multiple manifests"}
+                         :description "Title of manifest or title prefix, if making multiple manifests"}
                 "data_type" {:type "array"
                              :items {:type "string"}
-                             :description "Data model component(s). To make all manifests, enter [\"all manifests\"]"}
+                             :description "What template/component type to generate. To make all, enter [\"all manifests\"]"}
                 "use_annotations" {:type "boolean"
                                    :default false
-                                   :description "Use annotations?"}
+                                   :description "Use annotations to create possibly filled-in template?"}
                 "dataset_id" {:type "array"
                               :items {:type "string"}
-                              :description "Dataset ID(s). If getting existing manifest, this should be parent ID of the manifest"}
+                              :description "Dataset ID(s), which should be ids of Synapse folder entities, with format syn[0-9]+"}
                 "asset_view" {:type "string"
-                              :description "ID of view listing all project data assets (e.g. Synapse fileview ID)"}
+                              :description "ID of view listing all project data assets (Synapse fileview ID)"}
                 "output_format" {:type "string"
-                                 :enum ["excel" "google_sheet" "dataframe (only if getting existing manifests)"]
+                                 :enum ["excel" "google_sheet"] ;;  "dataframe (only if getting existing manifests)" -- remove low-level option
                                  :description "Output format for the manifest"}
                 "strict_validation" {:type "boolean"
                                      :default true
@@ -377,7 +353,7 @@
                 "data_model_labels" {:type "string"
                                      :enum ["display_label" "class_label"]
                                      :default "class_label"
-                                     :description "How to set labels in the data model"}}
+                                     :description "Which label type to use for template"}}
    :required ["schema_url" "data_type"]}
   :category #{:schematic :manifest}
   :permissions #{:read}
@@ -405,14 +381,16 @@
                  annotation_keys (assoc "annotation_keys" annotation_keys)
                  file_annotations_upload (assoc "file_annotations_upload" file_annotations_upload)
                  project_scope (assoc "project_scope" project_scope)
-                 dataset_scope (assoc "dataset_scope" dataset_scope))
-        multipart-data (when file_path
-                         [{:name "file_name"
-                           :content (io/input-stream file_path)}])]
-    (make-api-request :post "/model/submit" params :multipart-data multipart-data)))
+                 dataset_scope (assoc "dataset_scope" dataset_scope))]
+    (http/post "https://schematic.api.sagebionetworks.org/v1/model/submit"
+               {:query-params params
+                :headers {"Authorization" (str "Bearer " *schematic-auth-token*)}
+                :multipart [{:name "file_name"
+                             :content (io/file file_path)}]})))
+
 
 (registry/deftool :submit-manifest
-  "Submit annotated manifest file to validate and store in Synapse"
+  "Submit filled manifest file and store in Synapse. Returns id for manifest if successful."
   {:type "object"
    :properties {"schema_url" {:type "string"
                               :description "Data Model URL"}
@@ -420,8 +398,9 @@
                                      :enum ["display_label" "class_label"]
                                      :default "class_label"
                                      :description "How to set labels in the data model"}
-                "data_type" {:type "string"
-                             :description "Data model component (e.g. 'Patient')"}
+                ; better separation of functionality -- validation shhould use validate endpoint
+                ;"data_type" {:type "string"
+                ;             :description "Data model template/component name. If given, will validate before submitting."}
                 "dataset_id" {:type "string"
                               :description "Dataset SynID where manifest will be stored"}
                 "manifest_record_type" {:type "string"
@@ -476,11 +455,12 @@
                  json_str (assoc "json_str" json_str)
                  asset_view (assoc "asset_view" asset_view)
                  project_scope (assoc "project_scope" project_scope)
-                 dataset_scope (assoc "dataset_scope" dataset_scope))
-        multipart-data (when file_path
-                         [{:name "file_name"
-                           :content (io/input-stream file_path)}])]
-    (make-api-request :post "/model/validate" params :multipart-data multipart-data)))
+                 dataset_scope (assoc "dataset_scope" dataset_scope))]
+    (http/post "https://schematic.api.sagebionetworks.org/v1/model/validate"
+               {:query-params params
+                :headers {"Authorization" (str "Bearer " *schematic-auth-token*)}
+                :multipart [{:name "file_name"
+                             :content (io/file file_path)}]})))
 
 (registry/deftool :validate-manifest
   "Validate metadata manifest files against a data model"
