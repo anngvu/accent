@@ -69,15 +69,12 @@
   [:vector {:description "List of prompt arguments"}
    prompt-argument-schema])
 
-(def prompt-handler-schema
-  [:fn {:description "Function that handles prompt execution, returns messages"}])
-
 (def prompt-spec-schema
   [:map {:description "Complete prompt specification"}
    [:prompt-name prompt-name-schema]
    [:description description-schema]
    [:arguments {:optional true} prompt-arguments-schema]
-   [:handler prompt-handler-schema]
+   [:handler handler-schema]
    [:category {:optional true} category-schema]
    [:permissions {:optional true} permissions-schema]
    [:dependencies {:optional true} dependencies-schema]])
@@ -411,37 +408,11 @@
        :handler ~handler-fn})))
 
 (defmacro defprompt
-  "Macro to define and register a prompt in one step.
-   Handler can be either:
-   - A function symbol/var: (defprompt :my-prompt \"...\" my-existing-function)
-   - Function body forms: (defprompt :my-prompt \"...\" (generate-response args))
-   - Explicit :handler key: (defprompt :my-prompt \"...\" :handler my-function)"
-  [prompt-name description & args]
-  (let [;; Parse keyword arguments and handler body
-        {opts true handler-body false} (group-by keyword? args)
-        opts-map (apply hash-map opts)
-        arguments (get opts-map :arguments [])
-        category (get opts-map :category :general)
-        permissions (get opts-map :permissions #{})
-        dependencies (get opts-map :dependencies [])
-        explicit-handler (get opts-map :handler)
-
-        handler-fn (cond
-                     ;; If :handler key is provided, use it directly
-                     explicit-handler explicit-handler
-
-                     ;; If handler-body is a single symbol, treat it as function reference
-                     (and (= 1 (count handler-body))
-                          (symbol? (first handler-body)))
-                     (first handler-body)
-
-                     ;; Otherwise, wrap the body in a function
-                     (seq handler-body)
-                     `(fn [~'args] ~@handler-body)
-
-                     ;; No handler provided
-                     :else
-                     (throw (IllegalArgumentException. "No handler provided for prompt")))]
+  [prompt-name description arguments & {:keys [category permissions handler] :as opts}]
+  (let [category (get opts :category #{}) 
+        permissions (get opts :permissions #{}) 
+        dependencies (get opts :dependencies []) 
+        handler-fn (get opts :handler)]
     `(register-prompt!
       {:prompt-name ~prompt-name
        :description ~description
@@ -548,39 +519,3 @@
                   (dissoc :handler)
                   (assoc :handler-type (type (:handler (get-prompt item-name)))))
       nil)))
-
-(comment
-  ;; Example usage
-  
-  ;; Define tools and prompts
-  (deftool :greet
-    "Greet a person"
-    {:type "object"
-     :properties {"name" {:type "string"}}
-     :required ["name"]}
-    :category #{:social}
-    :permissions #{:read}
-    
-    {:message (str "Hello, " (:name args) "!")})
-  
-  (defprompt :analyze-code
-    "Analyze code for improvements"
-    :arguments [{:name "language" :description "Programming language" :required true}
-                {:name "code" :description "Code to analyze" :required true}]
-    :category :development
-    :permissions #{:read}
-    
-    {:messages [{:role "assistant"
-                 :content {:type "text"
-                          :text (str "Analyzing " (:language args) " code: " (:code args))}}]})
-  
-  ;; Check registry health
-  (health-check-registry)
-  
-  ;; Search for items
-  (search-items "code")
-  
-  ;; List everything
-  (list-all-items)
-)
-
