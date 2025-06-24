@@ -341,6 +341,7 @@
        (io/copy (:body response) output)
        path)))
 
+;; ----------------------------------------------------------------------------
 
 ;; /manifest/generate
 
@@ -392,7 +393,7 @@
                               :description "ID of view listing all project data assets (Synapse fileview ID). Required if `dataset_id` is specified."}
                 "output_format" {:type "string"
                                  :enum ["excel" "google_sheet"] ;;  "dataframe (only if getting existing manifests)" -- remove low-level option
-                                 :description "Output format for the manifest"}
+                                 :description "Output format for the manifest; `google_sheet` will return a link while `excel` will download a file."}
                 "strict_validation" {:type "boolean"
                                      :default true
                                      :description "Strictness of Google Sheets regex validation (relevant for `google_sheet` output only)"}
