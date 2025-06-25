@@ -4,7 +4,10 @@
             [curate.util :as cu]
             [database.arachne :as arachne]
             [cheshire.core :as json]
-            [malli.core :as m]))
+            [clj-http.client :as http]
+            [babashka.http-client :as client]
+            [malli.core :as m]
+            [clojure.java.io :as io]))
 
 ;; =============================================================================
 ;; Define and Register Synapse Tools
@@ -297,3 +300,247 @@
   :category #{:io}
   :permissions #{:write}
   :handler submit-data-handler)
+
+;; =============================================================================
+;; Define and Register Schematic Tools
+;; =============================================================================
+""
+(def ^:dynamic *schematic-auth-token* nil)
+
+;; ----------------------------------------------------------------------------
+
+;; helpers
+
+(defn get-downloads-dir []
+  (let [user-home (System/getProperty "user.home")
+        os-name (.toLowerCase (System/getProperty "os.name"))]
+    (cond
+      ;; Windows -
+      (.contains os-name "windows")
+      (or (some-> (System/getenv "USERPROFILE") (str "\\Downloads"))
+          (str user-home "\\Downloads"))
+
+      ;; macOS
+      (.contains os-name "mac")
+      (str user-home "/Downloads")
+
+      ;; Linux - respect XDG user directories
+      (.contains os-name "linux")
+      (or (System/getenv "XDG_DOWNLOAD_DIR")
+          (str user-home "/Downloads"))
+
+      ;; Other Unix-like systems
+      :else
+      (str user-home "/Downloads"))))
+
+(defn save-bytes
+  "Save data to Downloads. Should not be exposed as a standalone tool; should only be used through other tools."
+  [response filename]
+   (let [path (str (get-downloads-dir) "/" filename)]
+     (with-open [output (io/output-stream path)]
+       (io/copy (:body response) output)
+       path)))
+
+;; ----------------------------------------------------------------------------
+
+;; /manifest/generate
+
+(defn generate-manifest-handler
+  [{:keys [schema_url title data_type use_annotations dataset_id asset_view
+           output_format strict_validation data_model_labels]}]
+  (let [params (cond-> {"schema_url" schema_url
+                        "data_type" (if (vector? data_type) data_type [data_type])}
+                 title (assoc "title" title)
+                 use_annotations (assoc "use_annotations" use_annotations)
+                 dataset_id (assoc "dataset_id" (if (vector? dataset_id) dataset_id [dataset_id]))
+                 asset_view (assoc "asset_view" asset_view)
+                 output_format (assoc "output_format" output_format)
+                 strict_validation (assoc "strict_validation" strict_validation)
+                 data_model_labels (assoc "data_model_labels" data_model_labels))
+        response (http/get "https://schematic.api.sagebionetworks.org/v1/manifest/generate"
+                           {:query-params params
+                            :headers {"Authorization" (str "Bearer " *schematic-auth-token*)}
+                            :as (if (= "excel" output_format) :byte-array :auto)})]
+
+    (if (<= 200 (:status response) 299)
+      (if (= ((response :headers) "Content-Type") "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        {:type "text"
+         :text (str "Generated manifest at " (save-bytes response (str dataset_id "-" data_type ".xlsx")))}
+        {:type "text"
+         :text (str (:body response))})
+       {:type "text"
+        :text (str "API Error: " (:status response) " - " (:body response))}
+    )))
+
+(registry/deftool :generate-manifest
+  "Generate metadata manifest (fillable template file) for a given data model and dataset."
+  {:type "object"
+   :properties {"schema_url" {:type "string"
+                              :description "Organization-specific data model URL (refer to known configurations)."}
+                "title" {:type "string"
+                         :description "Title of manifest or title prefix, if making multiple manifests"}
+                "data_type" {:type "array"
+                             :items {:type "string"}
+                             :description "What template/component type to generate -- refer to types defined in the specific data model."} ;; "To make all, enter [\"all manifests\"]" --
+                "dataset_id" {:type "array"
+                              :items {:type "string"}
+                              :description (str "Dataset ID(s), i.e. ids of Synapse folder entities."
+                                                "When an ID is given, template will contain rows for files present, otherwise a 'blank' template with headers only.")}
+                "use_annotations" {:type "boolean"
+                                   :default false
+                                   :description "Use annotations to create possibly filled-in template? Relevant when `dataset_id` is specified."}
+                "asset_view" {:type "string"
+                              :description "ID of view listing all project data assets (Synapse fileview ID). Required if `dataset_id` is specified."}
+                "output_format" {:type "string"
+                                 :enum ["excel" "google_sheet"] ;;  "dataframe (only if getting existing manifests)" -- remove low-level option
+                                 :description "Output format for the manifest; `google_sheet` will return a link while `excel` will download a file."}
+                "strict_validation" {:type "boolean"
+                                     :default true
+                                     :description "Strictness of Google Sheets regex validation (relevant for `google_sheet` output only)"}
+                "data_model_labels" {:type "string"
+                                     :enum ["display_label" "class_label"]
+                                     :default "class_label"
+                                     :description "Which label type to use for template"}}
+   :required ["schema_url" "data_type"]}
+  :category #{:schematic :manifest}
+  :permissions #{:read}
+  :handler generate-manifest-handler)
+
+;; ----------------------------------------------------------------------------
+;; /model/submit
+
+(defn submit-manifest-handler
+  [{:keys [schema_url data_model_labels data_type dataset_id manifest_record_type
+           restrict_rules hide_blanks asset_view json_str table_manipulation
+           table_column_names annotation_keys file_annotations_upload
+           project_scope dataset_scope file_path]}]
+  (let [params (cond-> {"schema_url" schema_url
+                        "dataset_id" dataset_id
+                        "restrict_rules" (boolean restrict_rules)
+                        "asset_view" asset_view}
+                 data_model_labels (assoc "data_model_labels" data_model_labels)
+                 data_type (assoc "data_type" data_type)
+                 manifest_record_type (assoc "manifest_record_type" manifest_record_type)
+                 hide_blanks (assoc "hide_blanks" hide_blanks)
+                 json_str (assoc "json_str" json_str)
+                 table_manipulation (assoc "table_manipulation" table_manipulation)
+                 table_column_names (assoc "table_column_names" table_column_names)
+                 annotation_keys (assoc "annotation_keys" annotation_keys)
+                 file_annotations_upload (assoc "file_annotations_upload" file_annotations_upload)
+                 project_scope (assoc "project_scope" project_scope)
+                 dataset_scope (assoc "dataset_scope" dataset_scope))
+        response (http/post "https://schematic.api.sagebionetworks.org/v1/model/submit"
+                            {:query-params params
+                             :headers {"Authorization" (str "Bearer " *schematic-auth-token*)}
+                             :multipart [{:name "file_name"
+                             :content (io/file file_path)}]})]
+    {:type "text"
+     :text (response :body)}
+    ))
+
+
+(registry/deftool :submit-manifest
+  "Submit filled manifest file and store in Synapse. Returns id for manifest if successful."
+  {:type "object"
+   :properties {"schema_url" {:type "string"
+                              :description "Data Model URL"}
+                "data_model_labels" {:type "string"
+                                     :enum ["display_label" "class_label"]
+                                     :default "class_label"
+                                     :description "How to set labels in the data model"}
+                ; better separation of functionality -- validation shhould use validate endpoint
+                ;"data_type" {:type "string"
+                ;             :description "Data model template/component name. If given, will validate before submitting."}
+                "dataset_id" {:type "string"
+                              :description "Dataset SynID where manifest will be stored"}
+                "manifest_record_type" {:type "string"
+                                        :enum ["file_only" "file_and_entities" "table_and_file" "table_file_and_entities"]
+                                        :description "Form(s) in which manifest is stored in Synapse"}
+                "restrict_rules" {:type "boolean"
+                                  :default false
+                                  :description "If true, only use in-house validation rules; if false, use Great Expectations"}
+                "hide_blanks" {:type "boolean"
+                               :description "Skip annotations with blank values"}
+                "asset_view" {:type "string"
+                              :description "ID of view listing all project data assets"}
+                ;Data can be JSON *or* file; since nearly all users use file, don't surface this as it can cause confusion
+                ;"json_str" {:type "string"
+                ;            :description "JSON string representation of manifest data"}
+                "table_manipulation" {:type "string"
+                                      :enum ["replace" "upsert"]
+                                      :description "How to handle existing tables with same name"}
+                "table_column_names" {:type "string"
+                                      :enum ["display_name" "display_label" "class_label"]
+                                      :default "class_label"
+                                      :description "Format for table column names"}
+                "annotation_keys" {:type "string"
+                                   :enum ["display_label" "class_label"]
+                                   :default "class_label"
+                                   :description "Format for annotation keys"}
+                "file_annotations_upload" {:type "boolean"
+                                           :default true
+                                           :description "Whether to add annotations when submitting file-based manifests"}
+                "project_scope" {:type "array"
+                                 :items {:type "string"}
+                                 :description "Subset of projects within asset view relevant for operation"}
+                "dataset_scope" {:type "string"
+                                 :description "Dataset to validate against for filename validation"}
+                "file_path" {:type "string"
+                             :description "Local path to manifest file (CSV or JSON) to upload"}}
+   :required ["schema_url" "dataset_id" "restrict_rules" "asset_view" "file_path"]}
+  :category #{:schematic :manifest :validation}
+  :permissions #{:write}
+  :handler submit-manifest-handler)
+
+;; ----------------------------------------------------------------------------
+;; /model/validate
+
+(defn validate-manifest-handler
+  [{:keys [schema_url data_type data_model_labels restrict_rules json_str
+           asset_view project_scope dataset_scope file_path]}]
+  (let [params (cond-> {"schema_url" schema_url
+                        "data_type" data_type}
+                 data_model_labels (assoc "data_model_labels" data_model_labels)
+                 restrict_rules (assoc "restrict_rules" restrict_rules)
+                 json_str (assoc "json_str" json_str)
+                 asset_view (assoc "asset_view" asset_view)
+                 project_scope (assoc "project_scope" project_scope)
+                 dataset_scope (assoc "dataset_scope" dataset_scope))
+        response (http/post "https://schematic.api.sagebionetworks.org/v1/model/validate"
+                            {:query-params params
+                             :headers {"Authorization" (str "Bearer " *schematic-auth-token*)}
+                             :multipart [{:name "file_name"
+                             :content (io/file file_path)}]})]
+    {:type "text"
+     :text (response :body)}
+    ))
+
+(registry/deftool :validate-manifest
+  "Validate metadata manifest files against a data model"
+  {:type "object"
+   :properties {"schema_url" {:type "string"
+                              :description "Data Model URL"}
+                "data_type" {:type "string"
+                             :description "Data Model Component to validate against"}
+                "data_model_labels" {:type "string"
+                                     :enum ["display_label" "class_label"]
+                                     :default "class_label"
+                                     :description "How to set labels in the data model"}
+                "restrict_rules" {:type "boolean"
+                                  :default false
+                                  :description "If true, only use in-house validation rules; if false, use Great Expectations"}
+                ;"json_str" {:type "string"
+                ;            :description "JSON string representation of manifest data to validate"}
+                "asset_view" {:type "string"
+                              :description "ID of view listing all project data assets (required for cross-manifest validation)"}
+                "project_scope" {:type "array"
+                                 :items {:type "string"}
+                                 :description "Subset of projects within asset view relevant for validation"}
+                "dataset_scope" {:type "string"
+                                 :description "Dataset to validate against for filename validation"}
+                "file_path" {:type "string"
+                             :description "Local path to manifest file (CSV or JSON) to validate"}}
+   :required ["schema_url" "data_type" "file_path"]}
+  :category #{:schematic :manifest :validation}
+  :permissions #{:read}
+  :handler validate-manifest-handler)
