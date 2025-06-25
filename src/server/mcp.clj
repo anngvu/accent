@@ -22,7 +22,7 @@
 
 (def accent-server-spec
   {:name "accent: AI-Assisted Curation/Content ENhancement Tools",
-   :version "0.7.1",
+   :version "0.7.2",
    :tools all-tools
    :prompts all-prompts})
 
