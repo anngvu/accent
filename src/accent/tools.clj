@@ -1,6 +1,6 @@
 (ns accent.tools
   (:require [accent.registry :as registry]
-            [curate.synapse :refer [syn curate-dataset create-folder get-table-sample get-entity-wiki get-entity-schema get-user-name query-table set-annotations]]
+            [curate.synapse :refer [syn curate-dataset create-folder get-table-sample get-entity-wiki get-entity-schema get-user-name query-table set-annotations get-entity-children-page bind-entity-schema validate-entity-schema]]
             [curate.util :as cu]
             [database.arachne :as arachne]
             [cheshire.core :as json]
@@ -129,6 +129,71 @@
   :category #{:user-management :synapse}
   :permissions #{:read}
   :handler get-user-name-handler)
+
+;; ----------------------------------------------------------------------------
+
+(defn get-entity-children-page-handler
+  [{:keys [entity_children_request]}]
+  (let [request (json/parse-string entity_children_request)
+        result (get-entity-children-page @syn request)]
+    {:type "text"
+     :text (str result)}))
+
+(registry/deftool :get-entity-children-page
+  "Get a page of children for a given parent ID using POST /entity/children endpoint. Can also list projects by setting parentId to null."
+  {:type "object"
+   :properties
+   {"entity_children_request"
+    {:type "string"
+     :description "JSON string containing the EntityChildrenRequest payload with fields like parentId, nextPageToken, includeTypes, etc."}}
+   :required ["entity_children_request"]}
+  :category #{:data-access :synapse}
+  :permissions #{:read}
+  :handler get-entity-children-page-handler)
+
+;; ----------------------------------------------------------------------------
+
+(defn bind-entity-schema-handler
+  [{:keys [entity_id schema_binding]}]
+  (let [binding (json/parse-string schema_binding)
+        result (bind-entity-schema @syn entity_id binding)]
+    {:type "text"
+     :text (str result)}))
+
+(registry/deftool :bind-entity-schema
+  "Bind a JSON schema to an entity using PUT /entity/id/schema/binding endpoint."
+  {:type "object"
+   :properties
+   {"entity_id"
+    {:type "string"
+     :description "ID of the entity to bind schema to, e.g. 'syn12345678'"}
+    "schema_binding"
+    {:type "string"
+     :description "JSON string containing the schema binding payload"}}
+   :required ["entity_id" "schema_binding"]}
+  :category #{:data-management :synapse}
+  :permissions #{:write}
+  :handler bind-entity-schema-handler)
+
+;; ----------------------------------------------------------------------------
+
+(defn validate-entity-schema-handler
+  [{:keys [entity_id]}]
+  (let [result (validate-entity-schema @syn entity_id)]
+    {:type "text"
+     :text (str result)}))
+
+(registry/deftool :validate-entity-schema
+  "Get schema validation status for an entity using GET /entity/id/schema/validation endpoint."
+  {:type "object"
+   :properties
+   {"entity_id"
+    {:type "string"
+     :description "ID of the entity to validate schema for, e.g. 'syn12345678'"}}
+   :required ["entity_id"]}
+  :category #{:data-management :synapse}
+  :permissions #{:read}
+  :handler validate-entity-schema-handler)
 
 ;; =============================================================================
 ;; Define and Register Arachne Tools

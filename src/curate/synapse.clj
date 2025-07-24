@@ -287,6 +287,50 @@
          (get "markdown"))
       (catch Exception _ ""))))
 
+(defn get-entity-children-page
+  "Get a page of children for a given parent ID (POST /entity/children)"
+  [^SynapseClient client entity-children-request]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/children" repo-endpoint)
+        bearer-token (.getAccessToken client)]
+    (try
+      (->(http/post url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                   "Content-Type" "application/json"}
+                         :body (json/generate-string entity-children-request)})
+         (:body)
+         (json/parse-string))
+      (catch Exception e
+        {:error (str "Failed to get entity children: " (.getMessage e))}))))
+
+(defn bind-entity-schema
+  "Bind a JSON schema to an entity (PUT /entity/id/schema/binding)"
+  [^SynapseClient client entity-id schema-binding]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/%s/schema/binding" repo-endpoint entity-id)
+        bearer-token (.getAccessToken client)]
+    (try
+      (->(http/put url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                  "Content-Type" "application/json"}
+                        :body (json/generate-string schema-binding)})
+         (:body)
+         (json/parse-string))
+      (catch Exception e
+        {:error (str "Failed to bind schema to entity: " (.getMessage e))}))))
+
+(defn validate-entity-schema
+  "Get schema validation status for an entity (GET /entity/id/schema/validation)"
+  [^SynapseClient client entity-id]
+  (let [repo-endpoint (.getRepoEndpoint client)
+        url (format "%s/entity/%s/schema/validation" repo-endpoint entity-id)
+        bearer-token (.getAccessToken client)]
+    (try
+      (->(http/get url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                  "Content-Type" "application/json"}})
+         (:body)
+         (json/parse-string))
+      (catch Exception e
+        {:error (str "Failed to get schema validation: " (.getMessage e))}))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Create folders and annotations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
