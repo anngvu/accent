@@ -47,7 +47,7 @@ There is also a more detailed discussion of clients in doc/MCP.md that might be 
 2. Follow the configuration instructions for your client. With [Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), use the configuration below:
 ```
 { 
-  "mcpServers" {
+  "mcpServers": {
     "accent": {
       "command": "java",
       "args": [
