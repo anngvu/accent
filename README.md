@@ -1,43 +1,40 @@
 ## ACCENT
 
-> [!WARNING]  
-> This is **an application for research and rapid prototyping**, used to better understand and improve UX and mitigate risks of data professionals working with AI for data-related workflows. 
+> [!NOTE]  
+> This is **an application for research and prototyping** of UX and workflows with AI. While generally relevant for professionals working with data, there is also significant work tied to the Synapse platform/projects, where AI agents are productionized.
 
 ### Motivation
 
-#### For people who do scientific data management/curation
+Incorporating generative AI can greatly boost productivity in knowledge work, with a clear call for developers to provide the approaches that mitigate pitfalls and maximize ergonomics[^1]:
+
+> Developers can also help with figuring out **where AI can be inserted into workflows and how to design technology for doing that**.
+
+Thus, this application is about designing technology to incorporate AI, primarily generative AI, but with strong interest as well in other forms such as symbolic AI. And here, the knowledge work is more specifically with scientific data.
+
+#### For people who work with scientific data
+
+##### Data management/curation
 
 Science is built upon data. Research communities have the goal of sharing data packaged and disseminated optimally for (re)use. 
 
-If the community is lucky, this is supported by dedicated data curators/managers and contributing scientists are also directly involved. 
+If the community is lucky, this is supported by dedicated data curators/managers or contributing scientists directly involved as curators. 
 
-If the community is even luckier, good data curation/management tools are available for the processes of developing and applying a common data model, sharing data, finding data, assessing data, etc.
+If the community is even luckier, AI agents will assist human curators to help with curation workflows, such as harmonizing data, finding data, assessing data, etc.
 
-Like with other knowledge work, incorporating AI (just another tool that can use tools) could greatly boost productivity, though it is perhaps best achieved through an internal or "wrapper" interface that mitigate pitfalls[^1] and maximize ergonomics.
-
-> Developers can also help with figuring out **where AI can be inserted into workflows and how to design technology for doing that**. 
-
-Data management responsibilities[^2][^3] prioritized for an assisted workflow are: 
-1. Data curation -- create, organize, QC, and publish FAIR/harmonized data assets to the best advantage. 
-2. Develop standards and data models. 
-3. Maintain data management plans and SOPs. 
-4. Facilitate data analysis/reuse and reporting for stakeholders, regulatory authorities, etc. 
-5. Integration of apps/new technologies and initiatives into data standards and structures. 
-
-<!-- #### And for everyone
+<!-- #### And for everyone else
 
 Everyone is a curator and could benefit from AI-assisted curation. This open-source application originally developed for biomedical data curation is actually quite reusable for other domains and personal use cases. Some "off-label" use cases will be demonstrated. -->
 
 ### Usage
 
-Unlike using generative AI in the default web interface, the application infrastructure here adds prompts and logic already optimized to project-specific workflows, API access to relevant platforms (Synapse), ability to read local files, ability to read and write to embedded databases for RAG, and other tools and resources to accomplish various tasks in the realm of data curation/management.
+Unlike using generative AI through the provider web interface (such as https://chatgpt.com/), the app adds custom tools and pre-optimized prompts and logic packaged as "agents". Example custom tools include Synapse tools and graph databases for RAG and research.
 
-There are several options to make use of these tools, resources, and prompts:
+Several options are available:
 
-1. *accent* can be run as an MCP server so you can use your favorite MCP-compatible client. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
-2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface and web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#Built-in-client-interface).
+1. *accent* can be run as an MCP server so you can use your favorite MCP-compatible client, especially when the client already provides an agentic interface. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
+2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface as well as a web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#Built-in-client-interface).
 
-There is also a more detailed discussion of clients in doc/MCP.md that might be helpful to read. 
+The more detailed discussion of clients in doc/MCP.md might be helpful to read. 
 
 #### MCP Server mode
 
