@@ -289,14 +289,22 @@
 
 (defn get-entity-children-page
   "Get a page of children for a given parent ID (POST /entity/children)"
-  [^SynapseClient client entity-children-request]
+  [^SynapseClient client parent-id & {:keys [next-page-token include-types include-total-child-count include-sum-file-sizes]
+                                      :or {include-types ["file" "folder"]
+                                           include-total-child-count true
+                                           include-sum-file-sizes true}}]
   (let [repo-endpoint (.getRepoEndpoint client)
         url (format "%s/entity/children" repo-endpoint)
-        bearer-token (.getAccessToken client)]
+        bearer-token (.getAccessToken client)
+        request-body (cond-> {:parentId parent-id
+                              :includeTypes include-types
+                              :includeTotalChildCount include-total-child-count
+                              :includeSumFileSizes include-sum-file-sizes}
+                       next-page-token (assoc :nextPageToken next-page-token))]
     (try
       (->(http/post url {:headers {"Authorization" (str "Bearer " bearer-token)
                                    "Content-Type" "application/json"}
-                         :body (json/generate-string entity-children-request)})
+                         :body (json/generate-string request-body)})
          (:body)
          (json/parse-string))
       (catch Exception e
@@ -304,14 +312,18 @@
 
 (defn bind-entity-schema
   "Bind a JSON schema to an entity (PUT /entity/id/schema/binding)"
-  [^SynapseClient client entity-id schema-binding]
+  [^SynapseClient client entity-id schema-id & {:keys [enable-derived-annotations]
+                                                :or {enable-derived-annotations false}}]
   (let [repo-endpoint (.getRepoEndpoint client)
         url (format "%s/entity/%s/schema/binding" repo-endpoint entity-id)
-        bearer-token (.getAccessToken client)]
+        bearer-token (.getAccessToken client)
+        request-body {:entityId entity-id
+                      :schema$id schema-id
+                      :enableDerivedAnnotations enable-derived-annotations}]
     (try
       (->(http/put url {:headers {"Authorization" (str "Bearer " bearer-token)
                                   "Content-Type" "application/json"}
-                        :body (json/generate-string schema-binding)})
+                        :body (json/generate-string request-body)})
          (:body)
          (json/parse-string))
       (catch Exception e
@@ -330,6 +342,69 @@
          (json/parse-string))
       (catch Exception e
         {:error (str "Failed to get schema validation: " (.getMessage e))}))))
+
+(defn collect-files-recursively
+  "Recursively collect all files under a folder, returning EntityRef format"
+  [^SynapseClient client folder-id & {:keys [version-number] :or {version-number 1}}]
+  (letfn [(collect-files [parent-id collected-files]
+            (let [response (get-entity-children-page client parent-id 
+                                                    :include-types ["file" "folder"]
+                                                    :include-total-child-count false
+                                                    :include-sum-file-sizes false)]
+              (if-let [error (:error response)]
+                {:error error}
+                (let [page (get response "page" [])
+                      files (filter #(= "file" (get % "type")) page)
+                      folders (filter #(= "folder" (get % "type")) page)
+                      file-refs (mapv #(hash-map :entityId (get % "id") 
+                                                 :versionNumber version-number) files)
+                      updated-files (into collected-files file-refs)]
+                  (if (empty? folders)
+                    updated-files
+                    (reduce (fn [acc folder]
+                              (if (map? acc) ; Check if previous call returned error
+                                acc
+                                (let [folder-files (collect-files (get folder "id") [])]
+                                  (if (:error folder-files)
+                                    folder-files
+                                    (into acc folder-files)))))
+                            updated-files folders))))))]
+    (collect-files folder-id [])))
+
+(defn create-dataset
+  "Create a dataset containing all files recursively found under one or more folders"
+  [^SynapseClient client dataset-name parent-id folder-ids & {:keys [version-number] 
+                                                             :or {version-number 1}}]
+  (let [folder-list (if (coll? folder-ids) folder-ids [folder-ids])
+        all-files (reduce (fn [acc folder-id]
+                           (if (:error acc)
+                             acc ; Return early if previous folder had error
+                             (let [folder-files (collect-files-recursively client folder-id :version-number version-number)]
+                               (if (:error folder-files)
+                                 folder-files
+                                 (into acc folder-files)))))
+                         []
+                         folder-list)]
+    (if (:error all-files)
+      all-files
+      (let [file-count (count all-files)]
+        (if (> file-count 30000)
+          {:error (str "Dataset would contain " file-count " files, exceeding the 30,000 item limit")}
+          (let [repo-endpoint (.getRepoEndpoint client)
+                url (format "%s/entity" repo-endpoint)
+                bearer-token (.getAccessToken client)
+                dataset-entity {:concreteType "org.sagebionetworks.repo.model.table.Dataset"
+                               :name dataset-name
+                               :parentId parent-id
+                               :items all-files}]
+            (try
+              (->(http/post url {:headers {"Authorization" (str "Bearer " bearer-token)
+                                          "Content-Type" "application/json"}
+                                :body (json/generate-string dataset-entity)})
+                 (:body)
+                 (json/parse-string))
+              (catch Exception e
+                {:error (str "Failed to create dataset: " (.getMessage e))}))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Create folders and annotations

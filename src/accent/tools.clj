@@ -1,6 +1,6 @@
 (ns accent.tools
   (:require [accent.registry :as registry]
-            [curate.synapse :refer [syn curate-dataset create-folder get-table-sample get-entity-wiki get-entity-schema get-user-name query-table set-annotations get-entity-children-page bind-entity-schema validate-entity-schema]]
+            [curate.synapse :refer [syn curate-dataset create-folder get-table-sample get-entity-wiki get-entity-schema get-user-name query-table set-annotations get-entity-children-page bind-entity-schema validate-entity-schema create-dataset]]
             [curate.util :as cu]
             [database.arachne :as arachne]
             [cheshire.core :as json]
@@ -133,20 +133,37 @@
 ;; ----------------------------------------------------------------------------
 
 (defn get-entity-children-page-handler
-  [{:keys [entity_children_request]}]
-  (let [request (json/parse-string entity_children_request)
-        result (get-entity-children-page @syn request)]
+  [{:keys [parent_id next_page_token include_types include_total_child_count include_sum_file_sizes]}]
+  (let [result (get-entity-children-page @syn parent_id
+                                          :next-page-token next_page_token
+                                          :include-types include_types
+                                          :include-total-child-count include_total_child_count
+                                          :include-sum-file-sizes include_sum_file_sizes)]
     {:type "text"
      :text (str result)}))
 
 (registry/deftool :get-entity-children-page
-  "Get a page of children for a given parent ID using POST /entity/children endpoint. Can also list projects by setting parentId to null."
+  "Get a page of children for a given parent ID using POST /entity/children endpoint. Can also list projects by setting parent_id to null."
   {:type "object"
    :properties
-   {"entity_children_request"
+   {"parent_id"
     {:type "string"
-     :description "JSON string containing the EntityChildrenRequest payload with fields like parentId, nextPageToken, includeTypes, etc."}}
-   :required ["entity_children_request"]}
+     :description "The ID of the parent entity, e.g. 'syn12345678'. Set to null to list projects."}
+    "next_page_token"
+    {:type "string"
+     :description "Optional token for fetching the next page of results. Omit for first page."}
+    "include_types"
+    {:type "array"
+     :items {:type "string"
+             :enum ["project" "folder" "file" "table" "link" "entityview" "dockerrepo" "submissionview" "dataset" "datasetcollection" "materializedview" "virtualtable"]}
+     :description "The types of children to include. Must include at least one type."}
+    "include_total_child_count"
+    {:type "boolean"
+     :description "When true, includes the total number of children with the given parentId and types."}
+    "include_sum_file_sizes"
+    {:type "boolean"
+     :description "When true, includes the sum of file sizes (bytes) with the given parentId and types."}}
+   :required ["parent_id"]}
   :category #{:data-access :synapse}
   :permissions #{:read}
   :handler get-entity-children-page-handler)
@@ -154,9 +171,9 @@
 ;; ----------------------------------------------------------------------------
 
 (defn bind-entity-schema-handler
-  [{:keys [entity_id schema_binding]}]
-  (let [binding (json/parse-string schema_binding)
-        result (bind-entity-schema @syn entity_id binding)]
+  [{:keys [entity_id schema_id enable_derived_annotations]}]
+  (let [result (bind-entity-schema @syn entity_id schema_id
+                                   :enable-derived-annotations enable_derived_annotations)]
     {:type "text"
      :text (str result)}))
 
@@ -167,10 +184,13 @@
    {"entity_id"
     {:type "string"
      :description "ID of the entity to bind schema to, e.g. 'syn12345678'"}
-    "schema_binding"
+    "schema_id"
     {:type "string"
-     :description "JSON string containing the schema binding payload"}}
-   :required ["entity_id" "schema_binding"]}
+     :description "The $id of the JSON schema to bind to the entity. Can include version (e.g., 'schema-1.0.0') or omit version to use latest."}
+    "enable_derived_annotations"
+    {:type "boolean"
+     :description "When true, Synapse will automatically calculate derived annotations based on the schema."}}
+   :required ["entity_id" "schema_id"]}
   :category #{:data-management :synapse}
   :permissions #{:write}
   :handler bind-entity-schema-handler)
@@ -194,6 +214,38 @@
   :category #{:data-management :synapse}
   :permissions #{:read}
   :handler validate-entity-schema-handler)
+
+;; ----------------------------------------------------------------------------
+
+(defn create-dataset-handler
+  [{:keys [dataset_name parent_id folder_ids version_number]}]
+  (let [result (create-dataset @syn dataset_name parent_id folder_ids
+                               :version-number (or version_number 1))]
+    {:type "text"
+     :text (str result)}))
+
+(registry/deftool :create-dataset
+  "Create a dataset containing all files recursively found under one or more folders. Datasets can only contain files (folders are traversed but not included)."
+  {:type "object"
+   :properties
+   {"dataset_name"
+    {:type "string"
+     :description "Name for the new dataset"}
+    "parent_id"
+    {:type "string"
+     :description "ID of the parent entity where the dataset will be created, e.g. 'syn12345678'"}
+    "folder_ids"
+    {:type "array"
+     :items {:type "string"}
+     :minItems 1
+     :description "Array of folder IDs to recursively scan for files. Can also be a single folder ID string."}
+    "version_number"
+    {:type "integer"
+     :description "Version number to use for all file references in the dataset (defaults to 1)"}}
+   :required ["dataset_name" "parent_id" "folder_ids"]}
+  :category #{:data-management :synapse}
+  :permissions #{:write}
+  :handler create-dataset-handler)
 
 ;; =============================================================================
 ;; Define and Register Arachne Tools
