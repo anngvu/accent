@@ -1,7 +1,7 @@
 ## ACCENT
 
 > [!NOTE]  
-> This is **an application for research and prototyping** of UX and workflows with AI. While generally relevant for professionals working with data, there is also significant work tied to the Synapse platform/projects, where AI agents are productionized.
+> This is **an application for research and prototyping** of UX and workflows with AI. While it *may* be generally relevant for any professionals working with data, significant functionality is tied to the Synapse platform and specific projects.
 
 ### Motivation
 
@@ -9,11 +9,13 @@ Incorporating generative AI can greatly boost productivity in knowledge work, wi
 
 > Developers can also help with figuring out **where AI can be inserted into workflows and how to design technology for doing that**.
 
-Thus, this application is about designing technology to incorporate AI, primarily generative AI, but with strong interest as well in other forms such as symbolic AI. And here, the knowledge work is more specifically with scientific data.
+Originally, this explored building an agent framework from scratch and how to design agents for specific Synapse workflows -- from basic things like prompts and tools needed to potentially more useful/advanced framework features. For example, interesting things included integrating symbolic AI to work in tandem with generative AI or smart delegation between different LLM providers. 
 
-#### For people who work with scientific data
+For practical usage, this is nowadays used much more often as a local MCP server with agentic client/frameworks like Claude Desktop/Code and especially the open-source [goose](https://github.com/block/goose), which have all the real, recent developments one would wish for.
 
-##### Data management/curation
+### For people who work with scientific data
+
+#### Data management/curation
 
 Science is built upon data. Research communities have the goal of sharing data packaged and disseminated optimally for (re)use. 
 
@@ -23,25 +25,21 @@ If the community is even luckier, AI agents will assist human curators to help w
 
 <!-- #### And for everyone else
 
-Everyone is a curator and could benefit from AI-assisted curation. This open-source application originally developed for biomedical data curation is actually quite reusable for other domains and personal use cases. Some "off-label" use cases will be demonstrated. -->
+Everyone is a curator and could benefit from AI-assisted curation. This open-source application originally developed for biomedical data curation could be reusable for other domains and personal use cases. TBD: "off-label" use cases to demonstrate. -->
 
 ### Usage
 
-Unlike using generative AI through the provider web interface (such as https://chatgpt.com/), the app adds custom tools and pre-optimized prompts and logic packaged as "agents". Example custom tools include Synapse tools and graph databases for RAG and research.
-
 Several options are available:
 
-1. *accent* can be run as an MCP server so you can use your favorite MCP-compatible client, especially when the client already provides an agentic interface. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode).
-2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface as well as a web app client interface. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#Built-in-client-interface).
-
-The more detailed discussion of clients in doc/MCP.md might be helpful to read. 
+1. *accent* can be run as an MCP server so you can use your favorite MCP-compatible agentic client interface. See [MCP Server mode](https://github.com/anngvu/accent?tab=readme-ov-file#MCP-server-mode). It might also be helpful to read [doc/MCP.md](https://github.com/anngvu/accent/blob/develop/doc/MCP.md). 
+2. If you don't have a preferred compatible client, *accent* does include a basic terminal interface as well as a web app client interface to test our agents. To use either of these, see [Built-in client interface](https://github.com/anngvu/accent?tab=readme-ov-file#Built-in-client-interface). But these were only for very early concept demos and development of client UI/UX has not been prioritized since.
 
 #### MCP Server mode
 
 *accent* can be run as a local MCP server that you use with your preferred desktop client.
 
 1. Download a jar release v0.6.0 or later from the [releases page](https://github.com/anngvu/accent/releases).
-2. Follow the configuration instructions for your client. With [Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), use the configuration below:
+2. Follow the configuration instructions for your client. With [Claude for Desktop](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server), use the configuration below.
 ```
 { 
   "mcpServers": {
@@ -67,7 +65,7 @@ The more detailed discussion of clients in doc/MCP.md might be helpful to read.
 
 #### Built-in client interface
 
-You can use the built-in client interface in *accent*, but note that they are rather minimal.
+You can use the built-in interface in *accent*, though it's rather minimal.
 
 1. For the web app client interface, download a jar release v0.4.0 or later from the [releases page](https://github.com/anngvu/accent/releases).
 2. Set up a config file in the same location as your jar. See [Configuration](https://github.com/anngvu/accent?tab=readme-ov-file#configuration).
@@ -116,7 +114,7 @@ Tip for usage: Trying to reduce costs by switching to a cheaper model for some t
 - doc/AGENTS.md describes and explains more about agents and usage.
 - doc/MCP.md describes and explains more about Model Context Protocol.
 - doc/ROADMAP.md describes roadmap and context.
-- doc/DESIGN.gv reflects a draft architecture of app.
+- doc/DESIGN.gv reflects early draft architecture of app.
 
 
 ### Demos and Tutorials (WIP)
